@@ -1,0 +1,1 @@
+Poné acá tus fotos (jpg/png/webp) y referencialas en src/data.js como /img/archivo.jpg

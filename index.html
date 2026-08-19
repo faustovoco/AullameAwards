@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aullame Awards 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- ===== NAV ===== -->
+    <header class="nav">
+      <button class="nav__logo" data-scroll-top>
+        <img class="nav__icon" id="nav-icon" alt="Aullame" hidden />
+        <span class="nav__laurel" id="nav-icon-fallback">🐺</span>
+        <span class="nav__name">AULLAME<br /><small>AWARDS</small></span>
+      </button>
+      <nav class="nav__links">
+        <button class="nav__btn" id="btn-2025">Edición 2025</button>
+      </nav>
+    </header>
+
+    <!-- ===== HERO (trofeo 3D) ===== -->
+    <section class="hero" id="hero">
+      <div class="hero__rays"></div>
+      <div class="hero__mist"></div>
+      <canvas id="trophy-canvas"></canvas>
+      <div class="hero__loading" id="trophy-loading"><span></span>Invocando al lobo…</div>
+      <div class="hero__content">
+        <h1 class="hero__title">AULLAME AWARDS</h1>
+        <p class="hero__date" id="hero-date">7 MARZO 2026</p>
+      </div>
+      <div class="hero__scroll">
+        <span>Deslizá</span>
+        <div class="hero__arrow"></div>
+      </div>
+    </section>
+
+    <!-- ===== COUNTDOWN ===== -->
+    <section class="countdown reveal" id="countdown">
+      <p class="countdown__label">La II Edición aúlla en</p>
+      <div class="countdown__grid" id="countdown-grid">
+        <div class="cd"><b data-cd="d">00</b><small>días</small></div>
+        <div class="cd"><b data-cd="h">00</b><small>horas</small></div>
+        <div class="cd"><b data-cd="m">00</b><small>min</small></div>
+        <div class="cd"><b data-cd="s">00</b><small>seg</small></div>
+      </div>
+      <div class="countdown__ready" id="countdown-ready" hidden>
+        <p>La noche llegó.</p>
+        <button class="play-btn" id="play-btn"><span>▶</span> Comenzar la ceremonia</button>
+      </div>
+    </section>
+
+    <!-- ===== QUÉ ES ===== -->
+    <section class="section reveal" id="que-es">
+      <h2 class="section__title">Qué es Aullame</h2>
+      <p class="section__lead">
+        Una premiación entre ocho amigos que cierra el año. Se vota en distintas
+        categorías, se entregan diplomas y trofeos, y se corona al
+        <strong>Aullame del Año</strong>: el amigo del año. El trofeo mayor es un
+        lobo forzudo que imprimimos en 3D. Esta es la <strong>segunda edición</strong>.
+      </p>
+    </section>
+
+    <!-- ===== INTEGRANTES ===== -->
+    <section class="section reveal" id="integrantes">
+      <h2 class="section__title">Los Integrantes</h2>
+      <p class="section__sub">La manada.</p>
+      <div class="members" id="members-grid"></div>
+    </section>
+
+    <!-- ===== CATEGORÍAS ===== -->
+    <section class="section reveal" id="categorias">
+      <h2 class="section__title">Categorías</h2>
+      <p class="section__sub">Todo lo que está en juego.</p>
+      <div class="cats" id="cats-grid"></div>
+    </section>
+
+    <!-- ===== TIMELINE ===== -->
+    <section class="section reveal" id="timeline">
+      <h2 class="section__title">El Año en Recuerdos</h2>
+      <p class="section__sub">Cumpleaños, juntadas y momentos que valieron un premio.</p>
+      <div style="text-align:center;margin-top:20px">
+        <a class="vote-btn" href="/subir.html" style="display:inline-block">➕ Subí tus fotos</a>
+      </div>
+      <div class="timeline" id="timeline-list"></div>
+    </section>
+
+    <!-- ===== VOTACIÓN ===== -->
+    <section class="section section--vote reveal" id="votacion">
+      <h2 class="section__title">Votación</h2>
+      <p class="section__lead">
+        A cada integrante le va a llegar un <strong>link personal</strong> para votar.
+        Los votos son <strong>secretos</strong> — nadie, ni siquiera el organizador,
+        sabe los resultados hasta la noche de la ceremonia.
+      </p>
+      <button class="vote-btn" id="vote-btn">Ir a votar</button>
+      <p class="section__note">🔒 La votación se habilita más adelante.</p>
+    </section>
+
+    <footer class="footer">
+      <p>AULLAME AWARDS · II Edición · 7 Marzo 2026</p>
+    </footer>
+
+    <!-- ===== OVERLAY: CEREMONIA ===== -->
+    <div class="ceremony" id="ceremony" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

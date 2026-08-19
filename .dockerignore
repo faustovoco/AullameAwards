@@ -1,0 +1,19 @@
+# No copiar a la imagen (van en volúmenes o no hacen falta):
+node_modules
+dist
+.git
+.gitignore
+
+# Fotos originales (se importan aparte) y las optimizadas (van en el VOLUMEN):
+fotos
+fotos-2025
+fotos-2025-ganadores
+public/img
+
+# Datos mutables (van en el VOLUMEN):
+data
+
+# Otros
+*.log
+.DS_Store
+scratchpad

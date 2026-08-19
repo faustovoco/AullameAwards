@@ -1,0 +1,32 @@
+{
+  "name": "aullame-awards",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c yellow,cyan \"npm:server\" \"vite\"",
+    "web": "vite",
+    "server": "node server/index.js",
+    "build:ceremonia": "node scripts/build_ceremonia.mjs",
+    "import:fotos": "node scripts/import_fotos.mjs",
+    "import:2025": "node scripts/import_2025_timeline.mjs",
+    "import:2025-ganadores": "node scripts/import_2025.mjs",
+    "convert:mov": "node scripts/convert_mov.mjs",
+    "build": "vite build",
+    "start": "node server/index.js --serve",
+    "share": "lt --port 8787",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "concurrently": "^10.0.5",
+    "express": "^5.2.1",
+    "ffmpeg-static": "^5.3.0",
+    "localtunnel": "^2.0.2",
+    "multer": "^2.2.0",
+    "sharp": "^0.35.3",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subí tus fotos · Aullame Awards</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main class="subir-page">
+      <div class="subir-card">
+        <div class="subir-head">
+          <div class="subir-kicker">🐺 AULLAME AWARDS</div>
+          <h1 class="subir-title">Subí tus fotos</h1>
+          <p class="subir-sub">Sumá tus recuerdos a la timeline del año. Se agregan al toque.</p>
+        </div>
+
+        <label class="subir-field">Año
+          <select id="year">
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+          </select>
+        </label>
+
+        <label class="subir-field">Mes
+          <select id="mes">
+            <option value="ENE">Enero</option><option value="FEB">Febrero</option>
+            <option value="MAR">Marzo</option><option value="ABR">Abril</option>
+            <option value="MAY">Mayo</option><option value="JUN">Junio</option>
+            <option value="JUL">Julio</option><option value="AGO">Agosto</option>
+            <option value="SEP">Septiembre</option><option value="OCT">Octubre</option>
+            <option value="NOV">Noviembre</option><option value="DIC">Diciembre</option>
+          </select>
+        </label>
+
+        <label class="subir-drop" id="drop">
+          <input type="file" id="files" accept="image/*,video/*" multiple hidden />
+          <span id="drop-text">📸 Tocá para elegir fotos y videos</span>
+        </label>
+
+        <button class="subir-btn" id="send" disabled>Subir</button>
+        <div class="subir-status" id="status"></div>
+        <a class="subir-back" href="/">← Volver al inicio</a>
+      </div>
+    </main>
+    <script type="module" src="/src/subir.js"></script>
+  </body>
+</html>

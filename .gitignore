@@ -1,0 +1,22 @@
+# Dependencias y build
+node_modules
+dist
+
+# Fotos originales que arrastrás (pesan mucho, no van al repo)
+fotos/
+fotos-2025/
+fotos-2025-ganadores/
+
+# Fotos optimizadas y datos mutables → van en el VOLUMEN del server, no en git
+public/img/timeline/
+public/img/2025-timeline/
+public/img/2025/
+public/img/uploads/
+public/img/contrib/
+
+# Datos que cambian en producción (votos + contenido en vivo) → van en el VOLUMEN
+data/
+
+# Sistema
+*.log
+.DS_Store
