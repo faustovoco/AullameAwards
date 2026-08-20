@@ -33,11 +33,12 @@ function grouped(fotos) {
   const rows = [];
   for (const y of Object.keys(years).map(Number).sort((a, b) => b - a)) {
     const yd = years[y];
+    // el año se muestra 1 vez (sectionLabel); debajo van los meses
     for (const mes of Object.keys(yd.meses).sort((a, b) => (MES_ORDER[a] ?? 99) - (MES_ORDER[b] ?? 99)))
-      rows.push({ mes: String(y), titulo: MES_NOMBRE[mes] || mes, fotos: yd.meses[mes] });
-    if (yd.sinMes.length) rows.push({ mes: String(y), titulo: "Sin mes", fotos: yd.sinMes });
+      rows.push({ sectionLabel: String(y), mes: MES_NOMBRE[mes] || mes, titulo: "", fotos: yd.meses[mes] });
+    if (yd.sinMes.length) rows.push({ sectionLabel: String(y), mes: "Sin mes", titulo: "", fotos: yd.sinMes });
   }
-  if (noYear.length) rows.push({ mes: "—", titulo: "Sin clasificar", fotos: noYear });
+  if (noYear.length) rows.push({ sectionLabel: "Sin clasificar", mes: "", titulo: "", fotos: noYear });
   return rows;
 }
 

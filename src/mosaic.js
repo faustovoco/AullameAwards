@@ -17,7 +17,7 @@ function norm(f) {
   return { kind: "img", tile: f.t || f.v, view: f.v || f.t };
 }
 
-export function renderTimelineMosaic(container, timeline) {
+export function renderTimelineMosaic(container, timeline, opts = {}) {
   container.classList.add("mosaic-wrap");
   container.innerHTML = `
     <div class="mosaic-viewer" id="mosaic-viewer" hidden>
@@ -124,11 +124,23 @@ export function renderTimelineMosaic(container, timeline) {
     if (!pinned && !viewer.hidden) positionViewer();
   });
 
+  const marks = [];        // marcas para el deslizador (años, o meses si no hay años)
+  let lastSection = null;
   timeline.forEach((mes, mi) => {
+    // encabezado de año/sección: se muestra 1 sola vez (no repetido por mes)
+    if (mes.sectionLabel != null && mes.sectionLabel !== lastSection) {
+      lastSection = mes.sectionLabel;
+      const yr = document.createElement("div");
+      yr.className = "mrow-year";
+      yr.textContent = mes.sectionLabel;
+      months.appendChild(yr);
+      marks.push({ label: mes.sectionLabel, el: yr });
+    }
     const raw = (mes.fotos && mes.fotos.length) ? mes.fotos : placeholderTiles(mi);
     const items = raw.map(norm);
     const row = document.createElement("div");
     row.className = "mrow";
+    if (lastSection == null) marks.push({ label: mes.mes, el: row }); // timeline de un año: marcas por mes
     row.innerHTML = `
       <div class="mrow__label">
         <span class="mrow__mes">${mes.mes}</span>
@@ -166,6 +178,8 @@ export function renderTimelineMosaic(container, timeline) {
     months.appendChild(row);
   });
 
+  if (opts.scrubber !== false) buildScrubber(container, marks);
+
   document.addEventListener("keydown", (e) => {
     if (!pinned) return;
     if (e.key === "Escape") unpin();
@@ -173,6 +187,93 @@ export function renderTimelineMosaic(container, timeline) {
     else if (e.key === "ArrowRight") { e.preventDefault(); pinAt(currentIndex + 1); }
   });
   viewer.addEventListener("click", (e) => { if (pinned && e.target !== viewerVid) unpin(); });
+}
+
+// ---------- Deslizador tipo Google Fotos ----------
+// Riel a la derecha con una pastilla que sigue el scroll (muestra el año/mes),
+// arrastrable para saltar, con marcas de años. Aparece al hacer scroll o al
+// acercarse al borde derecho, y se esconde solo.
+let scrubTeardown = null;
+function buildScrubber(container, marks) {
+  if (scrubTeardown) { scrubTeardown(); scrubTeardown = null; }
+  document.querySelectorAll(".scrub").forEach((s) => s.remove());
+  if (marks.length < 2) return;
+
+  const rail = document.createElement("div");
+  rail.className = "scrub";
+  rail.innerHTML = `
+    <div class="scrub__hot"></div>
+    <div class="scrub__track"></div>
+    <div class="scrub__thumb"><span></span></div>`;
+  document.body.appendChild(rail);
+  const track = rail.querySelector(".scrub__track");
+  const thumb = rail.querySelector(".scrub__thumb");
+  const thumbLabel = thumb.querySelector("span");
+
+  const docTop = (el) => el.getBoundingClientRect().top + window.scrollY;
+  function range() {
+    const top = docTop(container);
+    const end = Math.max(top + 1, top + container.offsetHeight - window.innerHeight);
+    return { top, end };
+  }
+  function renderMarks() {
+    const { top, end } = range();
+    const span = Math.max(1, end - top);
+    track.innerHTML = marks.map((m) => {
+      const p = Math.min(1, Math.max(0, (docTop(m.el) - top) / span));
+      return `<div class="scrub__mark" style="top:${(p * 100).toFixed(2)}%">${m.label}</div>`;
+    }).join("");
+  }
+  function currentLabel() {
+    const y = window.scrollY + 100;
+    let cur = marks[0].label;
+    for (const m of marks) { if (docTop(m.el) <= y) cur = m.label; else break; }
+    return cur;
+  }
+  function inView() {
+    const r = container.getBoundingClientRect();
+    return r.bottom > 60 && r.top < window.innerHeight - 40;
+  }
+  function updateThumb() {
+    const { top, end } = range();
+    const p = Math.min(1, Math.max(0, (window.scrollY - top) / (end - top)));
+    thumb.style.top = (p * 100).toFixed(2) + "%";
+    thumbLabel.textContent = currentLabel();
+  }
+
+  let dragging = false, hideT;
+  function show() { if (!inView()) return; rail.classList.add("on"); clearTimeout(hideT); hideT = setTimeout(() => { if (!dragging) rail.classList.remove("on"); }, 1500); }
+  function scrubTo(clientY) {
+    const r = rail.getBoundingClientRect();
+    const p = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    const { top, end } = range();
+    window.scrollTo({ top: top + p * (end - top), behavior: "instant" });
+  }
+  const onDown = (e) => { dragging = true; try { rail.setPointerCapture(e.pointerId); } catch {} rail.classList.add("dragging"); scrubTo(e.clientY); e.preventDefault(); };
+  const onMove = (e) => { if (dragging) scrubTo(e.clientY); };
+  const onUp = () => { dragging = false; rail.classList.remove("dragging"); show(); };
+  thumb.addEventListener("pointerdown", onDown);
+  rail.querySelector(".scrub__track").addEventListener("pointerdown", onDown);
+  rail.addEventListener("pointermove", onMove);
+  rail.addEventListener("pointerup", onUp);
+  rail.addEventListener("pointerenter", () => { if (inView()) { rail.classList.add("on"); clearTimeout(hideT); } });
+  rail.addEventListener("pointerleave", () => { if (!dragging) show(); });
+
+  const onScroll = () => { updateThumb(); show(); };
+  const onResize = () => { renderMarks(); updateThumb(); };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onResize);
+  window.addEventListener("load", onResize);
+
+  renderMarks(); updateThumb();
+  setTimeout(() => { renderMarks(); updateThumb(); }, 700);   // reacomoda tras cargar imágenes
+
+  scrubTeardown = () => {
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("load", onResize);
+    rail.remove();
+  };
 }
 
 // Teselas de color como placeholder (meses sin fotos todavía).
