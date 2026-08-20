@@ -1,5 +1,6 @@
 import "./style.css";
 import "./admin.css";
+import { editionYears } from "./migrate.js";
 
 const root = document.getElementById("admin-root");
 const state = {
@@ -7,7 +8,7 @@ const state = {
   content: null,
   voteState: null,
   results: null,
-  tab: "contenido",
+  tab: "general",
 };
 
 const H = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -18,6 +19,7 @@ async function api(path, opts = {}) {
   if (opts.body && !(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
   return fetch(path, { ...opts, headers });
 }
+const saveContent = () => api("/api/content", { method: "PUT", body: JSON.stringify(state.content) });
 
 async function uploadFiles(fileList) {
   const fd = new FormData();
@@ -26,8 +28,6 @@ async function uploadFiles(fileList) {
   if (!r.ok) throw new Error("Error al subir imágenes");
   return (await r.json()).urls;
 }
-
-// sube y optimiza (fotos + videos) a una galería; devuelve entries {t,v}/{video}
 async function uploadGallery(fileList, dir) {
   const fd = new FormData();
   [...fileList].forEach((f) => fd.append("files", f));
@@ -47,23 +47,21 @@ function renderLogin(err) {
         <input id="key" type="password" placeholder="Clave" value="${H(state.key)}" />
         ${err ? `<p class="adm-error">${H(err)}</p>` : ""}
         <button id="enter">Entrar</button>
-        <p class="adm-hint">Clave inicial: <code>aullame2026</code> (cambiala en Ajustes)</p>
       </div>
     </div>`;
   const enter = () => tryLogin(document.getElementById("key").value.trim());
   document.getElementById("enter").onclick = enter;
   document.getElementById("key").addEventListener("keydown", (e) => e.key === "Enter" && enter());
 }
-
 async function tryLogin(key) {
   state.key = key;
   const r = await api("/api/admin/state");
   if (!r.ok) return renderLogin("Clave incorrecta o servidor apagado.");
   localStorage.setItem("aullame_key", key);
   await loadAll();
+  if (state.tab.startsWith("y:") && !state.content.editions[state.tab.slice(2)]) state.tab = "general";
   renderApp();
 }
-
 async function loadAll() {
   state.content = await (await fetch("/api/content")).json();
   state.voteState = await (await api("/api/admin/state")).json();
@@ -72,11 +70,16 @@ async function loadAll() {
 
 // ---------------- APP SHELL ----------------
 function renderApp() {
+  const c = state.content;
+  const years = editionYears(c);
   root.innerHTML = `
     <header class="adm-top">
-      <div class="adm-brand">🐺 <b>Aullame</b> · Panel</div>
+      <div class="adm-brand">🐺 <b>Aullame</b></div>
       <nav class="adm-tabs">
-        ${tabBtn("contenido", "Contenido")}
+        ${tabBtn("general", "General")}
+        ${years.map((y) => tabBtn("y:" + y, y + (y === c.event.currentYear ? " ●" : ""))).join("")}
+        <button class="adm-add" id="add-year">+ Año</button>
+        <span class="adm-tabsep"></span>
         ${tabBtn("votantes", "Votantes")}
         ${tabBtn("resultados", "Resultados")}
         ${tabBtn("ajustes", "Ajustes")}
@@ -86,8 +89,11 @@ function renderApp() {
     <main class="adm-main" id="adm-main"></main>
     <div class="adm-toast" id="toast" hidden></div>`;
   root.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; renderApp(); }));
+  document.getElementById("add-year").onclick = addYear;
   const main = document.getElementById("adm-main");
-  ({ contenido: tabContenido, votantes: tabVotantes, resultados: tabResultados, ajustes: tabAjustes }[state.tab])(main);
+  if (state.tab === "general") tabGeneral(main);
+  else if (state.tab.startsWith("y:")) tabYear(main, state.tab.slice(2));
+  else ({ votantes: tabVotantes, resultados: tabResultados, ajustes: tabAjustes }[state.tab])(main);
 }
 const tabBtn = (id, label) => `<button data-tab="${id}" class="${state.tab === id ? "on" : ""}">${label}</button>`;
 
@@ -97,16 +103,40 @@ function toast(msg) {
   setTimeout(() => { t.classList.remove("show"); setTimeout(() => (t.hidden = true), 300); }, 2000);
 }
 
-// ---------------- TAB: CONTENIDO ----------------
-function tabContenido(main) {
+function addYear() {
+  const y = prompt("¿Qué año querés agregar? (ej: 2027)");
+  const year = Number(y);
+  if (!/^\d{4}$/.test(String(year))) return;
   const c = state.content;
-  const dt = toLocalInput(c.event?.ceremonyDate);
+  if (c.editions[year]) { state.tab = "y:" + year; return renderApp(); }
+  const cur = c.editions[String(c.event.currentYear)];
+  c.editions[year] = {
+    anio: year, edicion: "", ceremonyDate: "",
+    finalizada: year < c.event.currentYear,
+    categorias: cur ? JSON.parse(JSON.stringify(cur.categorias)) : [],
+    ganadores: [], aullameDelAnio: { ganador: "", foto: "", frase: "" }, timeline: [],
+  };
+  saveContent();
+  state.tab = "y:" + year; renderApp();
+}
+
+// ---------------- TAB: GENERAL ----------------
+function tabGeneral(main) {
+  const c = state.content;
+  const years = editionYears(c);
+  const cur = c.editions[String(c.event.currentYear)] || { edicion: "", ceremonyDate: "" };
   main.innerHTML = `
     <section class="adm-sec">
       <h2>Evento</h2>
       <div class="adm-grid2">
-        <label>Edición<input id="ev-edicion" value="${H(c.event?.edicion || "")}" /></label>
-        <label>Fecha y hora de la ceremonia<input id="ev-fecha" type="datetime-local" value="${dt}" /></label>
+        <label>Edición en curso (año)
+          <select id="cur-year">${years.map((y) => `<option value="${y}" ${y === c.event.currentYear ? "selected" : ""}>${y}</option>`).join("")}</select>
+        </label>
+        <label>Nombre de la edición en curso<input id="cur-edicion" value="${H(cur.edicion)}" placeholder="ej: II Edición" /></label>
+      </div>
+      <div class="adm-grid2">
+        <label>Fecha y hora del evento (edición en curso)<input id="cur-fecha" type="datetime-local" value="${toLocalInput(cur.ceremonyDate)}" /></label>
+        <div></div>
       </div>
       <label class="adm-logo">Logo (ícono del sitio)
         <div class="adm-logo__row">
@@ -122,43 +152,142 @@ function tabContenido(main) {
       <div id="members">${c.members.map(memberRow).join("")}</div>
     </section>
 
-    <section class="adm-sec">
-      <h2>Categorías <button class="adm-add" data-add="cat">+ Agregar</button></h2>
-      <div id="cats">${c.categories.map(catRow).join("")}</div>
-    </section>
-
-    <section class="adm-sec">
-      <h2>Recuerdos del año (mosaico) <button class="adm-add" data-add="month">+ Agregar mes</button></h2>
-      <div id="months">${c.timeline.map(monthRow).join("")}</div>
-    </section>
-
-    <section class="adm-sec">
-      <h2>Edición 2025 (ganadores)</h2>
-      <div class="adm-grid2">
-        <label>Aullame del Año<input id="e25-gan" value="${H(c.edition2025?.aullameDelAnio?.ganador || "")}" /></label>
-        <label>Frase<input id="e25-frase" value="${H(c.edition2025?.aullameDelAnio?.frase || "")}" /></label>
-      </div>
-      <div id="e25gan">${(c.edition2025?.ganadores || []).map(gan25Row).join("")}</div>
-      <button class="adm-add" data-add="g25">+ Agregar ganador 2025</button>
-    </section>
-
-    <section class="adm-sec">
-      <h2>Recuerdos 2025 (timeline por meses) <button class="adm-add" data-add="month2025">+ Agregar mes</button></h2>
-      <p class="adm-muted">Igual que el timeline del año: cada mes con su descripción y sus fotos/videos. Se muestran debajo de los ganadores en "Edición 2025".</p>
-      <div id="months2025">${(c.edition2025?.timeline || []).map(monthRow).join("")}</div>
-    </section>
-
     <div class="adm-savebar">
-      <button class="adm-save" id="save">💾 Guardar todo</button>
+      <button class="adm-save" id="save">💾 Guardar</button>
       <span class="adm-muted">Los cambios se ven en el sitio al recargar.</span>
     </div>`;
 
-  bindContenido(main);
+  const bind = (id, setter) => { const el = document.getElementById(id); if (el) el.oninput = () => setter(el.value); };
+  document.getElementById("cur-year").onchange = (e) => { c.event.currentYear = Number(e.target.value); renderApp(); };
+  bind("cur-edicion", (v) => { if (c.editions[String(c.event.currentYear)]) c.editions[String(c.event.currentYear)].edicion = v; });
+  bind("cur-fecha", (v) => { if (c.editions[String(c.event.currentYear)]) c.editions[String(c.event.currentYear)].ceremonyDate = fromLocalInput(v); });
+
+  main.querySelector("[data-up='logo']").onclick = () => pickFiles(false, async (files) => {
+    const [url] = await uploadFiles(files); c.event.logo = url; renderApp();
+  });
+  const dl = main.querySelector("[data-dellogo]"); if (dl) dl.onclick = () => { c.event.logo = ""; renderApp(); };
+
+  main.querySelectorAll("[data-mid]").forEach((card) => {
+    const m = c.members.find((x) => x.id === card.dataset.mid);
+    card.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (m[el.dataset.f] = el.value)));
+    card.querySelector("[data-upmember]").onclick = () => pickFiles(false, async (files) => {
+      const [url] = await uploadFiles(files); m.foto = url; renderApp();
+    });
+    card.querySelector("[data-delmember]").onclick = () => { c.members = c.members.filter((x) => x !== m); renderApp(); };
+  });
+  main.querySelector("[data-add='member']").onclick = () => { c.members.push({ id: uid("m"), nombre: "Nuevo", apodo: "", foto: "", desc: "" }); renderApp(); };
+  document.getElementById("save").onclick = async () => toast((await saveContent()).ok ? "✅ Guardado" : "❌ Error");
 }
 
+// ---------------- TAB: AÑO (edición) ----------------
+function tabYear(main, yearStr) {
+  const c = state.content;
+  const ed = c.editions[yearStr];
+  if (!ed) { state.tab = "general"; return renderApp(); }
+  const esCurso = Number(yearStr) === c.event.currentYear;
+
+  main.innerHTML = `
+    <section class="adm-sec">
+      <h2>Edición ${yearStr} ${esCurso ? '<span class="adm-badge">en curso</span>' : ""}</h2>
+      <div class="adm-grid2">
+        <label>Nombre de la edición<input data-ed="edicion" value="${H(ed.edicion)}" placeholder="ej: I Edición" /></label>
+        <label>Fecha del evento<input data-ed="ceremonyDate" type="datetime-local" value="${toLocalInput(ed.ceremonyDate)}" /></label>
+      </div>
+      <label class="adm-check adm-fin"><input type="checkbox" id="ed-fin" ${ed.finalizada ? "checked" : ""}/> Edición terminada (muestra los ganadores)</label>
+    </section>
+
+    <section class="adm-sec">
+      <h2>Categorías <button class="adm-add" data-add="cat">+ Agregar</button></h2>
+      <div id="cats">${(ed.categorias || []).map(catRow).join("")}</div>
+    </section>
+
+    ${ed.finalizada ? `
+    <section class="adm-sec">
+      <h2>Ganadores</h2>
+      <div class="adm-grid2">
+        <label>Aullame del Año<input data-aull="ganador" value="${H(ed.aullameDelAnio?.ganador || "")}" /></label>
+        <label>Frase<input data-aull="frase" value="${H(ed.aullameDelAnio?.frase || "")}" /></label>
+      </div>
+      <div id="gans">${(ed.ganadores || []).map(ganRow).join("")}</div>
+      <button class="adm-add" data-add="gan">+ Agregar ganador</button>
+    </section>` : `
+    <section class="adm-sec">
+      <p class="adm-muted">Los ganadores salen de la votación. Cuando termine la ceremonia, marcá <b>"Edición terminada"</b> para cargarlos acá.</p>
+    </section>`}
+
+    <section class="adm-sec">
+      <h2>Recuerdos ${yearStr} (timeline por meses) <button class="adm-add" data-add="month">+ Agregar mes</button></h2>
+      <div id="months">${(ed.timeline || []).map(monthRow).join("")}</div>
+    </section>
+
+    <div class="adm-savebar">
+      <button class="adm-save" id="save">💾 Guardar</button>
+      ${esCurso ? "" : `<button class="adm-del" id="del-edition">Eliminar edición ${yearStr}</button>`}
+    </div>`;
+
+  // meta de la edición
+  main.querySelectorAll("[data-ed]").forEach((el) => (el.oninput = () =>
+    (ed[el.dataset.ed] = el.dataset.ed === "ceremonyDate" ? fromLocalInput(el.value) : el.value)));
+  document.getElementById("ed-fin").onchange = (e) => { ed.finalizada = e.target.checked; renderApp(); };
+
+  // categorías
+  if (!ed.categorias) ed.categorias = [];
+  main.querySelectorAll("[data-cid]").forEach((row) => {
+    const cat = ed.categorias.find((x) => x.id === row.dataset.cid);
+    row.querySelectorAll("[data-f]").forEach((el) => (el[el.type === "checkbox" ? "onchange" : "oninput"] =
+      () => (cat[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value)));
+    row.querySelector("[data-delcat]").onclick = () => { ed.categorias = ed.categorias.filter((x) => x !== cat); renderApp(); };
+  });
+
+  // ganadores
+  if (ed.finalizada) {
+    if (!ed.aullameDelAnio) ed.aullameDelAnio = { ganador: "", foto: "", frase: "" };
+    main.querySelectorAll("[data-aull]").forEach((el) => (el.oninput = () => (ed.aullameDelAnio[el.dataset.aull] = el.value)));
+    if (!ed.ganadores) ed.ganadores = [];
+    main.querySelectorAll("[data-gan]").forEach((row) => {
+      const g = ed.ganadores[+row.dataset.gan];
+      row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (g[el.dataset.f] = el.value)));
+      row.querySelector("[data-delgan]").onclick = () => { ed.ganadores.splice(+row.dataset.gan, 1); renderApp(); };
+    });
+  }
+
+  // recuerdos (timeline por meses, subida optimizada)
+  if (!ed.timeline) ed.timeline = [];
+  const dir = `edicion-${yearStr}`;
+  main.querySelectorAll("#months [data-mi]").forEach((row) => {
+    const t = ed.timeline[+row.dataset.mi];
+    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (t[el.dataset.f] = el.value)));
+    row.querySelector("[data-upmonth]").onclick = () => pickFiles(true, async (files) => {
+      toast("Subiendo y optimizando…");
+      const entries = await uploadGallery(files, dir);
+      t.fotos = [...(t.fotos || []), ...entries];
+      await saveContent(); toast("✅ Fotos agregadas"); renderApp();
+    }, "image/*,video/*");
+    row.querySelector("[data-delmonth]").onclick = () => { ed.timeline.splice(+row.dataset.mi, 1); renderApp(); };
+    row.querySelectorAll("[data-delfoto]").forEach((b) => (b.onclick = async () => { t.fotos.splice(+b.dataset.delfoto, 1); await saveContent(); renderApp(); }));
+  });
+
+  // add
+  main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
+    if (b.dataset.add === "cat") ed.categorias.push({ id: uid("c"), nombre: "Nueva categoría", emoji: "🏆", desc: "", mayor: false });
+    if (b.dataset.add === "gan") ed.ganadores.push({ categoria: "", ganador: "", foto: "" });
+    if (b.dataset.add === "month") ed.timeline.push({ mes: "MES", titulo: "", desc: "", fotos: [] });
+    renderApp();
+  }));
+
+  const del = document.getElementById("del-edition");
+  if (del) del.onclick = () => {
+    if (!confirm(`¿Eliminar la edición ${yearStr}? (no borra las fotos del disco)`)) return;
+    delete c.editions[yearStr]; state.tab = "general"; saveContent(); renderApp();
+  };
+
+  document.getElementById("save").onclick = async () => toast((await saveContent()).ok ? "✅ Guardado" : "❌ Error");
+}
+
+// ---------------- row helpers ----------------
 const memberRow = (m) => `
   <div class="adm-card" data-mid="${m.id}">
-    <div class="adm-photo" data-photo>${m.foto ? `<img src="${H(m.foto)}">` : "🐺"}</div>
+    <div class="adm-photo">${m.foto ? `<img src="${H(m.foto)}">` : "🐺"}</div>
     <div class="adm-fields">
       <input data-f="nombre" placeholder="Nombre" value="${H(m.nombre)}" />
       <input data-f="apodo" placeholder="Apodo" value="${H(m.apodo)}" />
@@ -179,6 +308,13 @@ const catRow = (c) => `
     <button class="adm-del" data-delcat>✕</button>
   </div>`;
 
+const ganRow = (g, i) => `
+  <div class="adm-row" data-gan="${i}">
+    <input data-f="categoria" placeholder="Categoría" value="${H(g.categoria)}" />
+    <input data-f="ganador" placeholder="Ganador" value="${H(g.ganador)}" />
+    <button class="adm-del" data-delgan>✕</button>
+  </div>`;
+
 const monthRow = (t, i) => `
   <div class="adm-month" data-mi="${i}">
     <div class="adm-month__head">
@@ -194,108 +330,9 @@ const monthRow = (t, i) => `
         const src = typeof f === "string" ? f : (f.t || f.v || "");
         const inner = isVid && !src ? `<span class="adm-thumb__vid">🎬</span>` : `<img src="${H(src)}">`;
         return `<div class="adm-thumb">${inner}<button data-delfoto="${fi}">✕</button></div>`;
-      }).join("")
-        || `<span class="adm-muted">Sin fotos. Subí muchas para el mosaico.</span>`}
+      }).join("") || `<span class="adm-muted">Sin fotos.</span>`}
     </div>
   </div>`;
-
-const gan25Row = (g, i) => `
-  <div class="adm-row" data-g25="${i}">
-    <input data-f="categoria" placeholder="Categoría" value="${H(g.categoria)}" />
-    <input data-f="ganador" placeholder="Ganador" value="${H(g.ganador)}" />
-    <button class="adm-del" data-delg25>✕</button>
-  </div>`;
-
-const e25fotosThumbs = (fotos) => (fotos || []).map((f, fi) => {
-  const isVid = typeof f !== "string" && f.video;
-  const src = typeof f === "string" ? f : (f.t || f.v || "");
-  const inner = isVid && !src ? `<span class="adm-thumb__vid">🎬</span>` : `<img src="${H(src)}">`;
-  return `<div class="adm-thumb">${inner}<button data-del2025foto="${fi}">✕</button></div>`;
-}).join("") || `<span class="adm-muted">Sin fotos todavía.</span>`;
-
-function bindContenido(main) {
-  const c = state.content;
-  // inputs simples de evento y 2025 (guardan en state al escribir)
-  const bind = (id, setter) => { const el = document.getElementById(id); if (el) el.oninput = () => setter(el.value); };
-  bind("ev-edicion", (v) => (c.event.edicion = v));
-  bind("ev-fecha", (v) => (c.event.ceremonyDate = fromLocalInput(v)));
-  bind("e25-gan", (v) => (c.edition2025.aullameDelAnio.ganador = v));
-  bind("e25-frase", (v) => (c.edition2025.aullameDelAnio.frase = v));
-
-  // logo
-  main.querySelector("[data-up='logo']").onclick = () => pickFiles(false, async (files) => {
-    const [url] = await uploadFiles(files); c.event.logo = url; renderApp();
-  });
-  const dl = main.querySelector("[data-dellogo]"); if (dl) dl.onclick = () => { c.event.logo = ""; renderApp(); };
-
-  // members
-  main.querySelectorAll("[data-mid]").forEach((card) => {
-    const m = c.members.find((x) => x.id === card.dataset.mid);
-    card.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (m[el.dataset.f] = el.value)));
-    card.querySelector("[data-upmember]").onclick = () => pickFiles(false, async (files) => {
-      const [url] = await uploadFiles(files); m.foto = url; renderApp();
-    });
-    card.querySelector("[data-delmember]").onclick = () => { c.members = c.members.filter((x) => x !== m); renderApp(); };
-  });
-
-  // cats
-  main.querySelectorAll("[data-cid]").forEach((row) => {
-    const cat = c.categories.find((x) => x.id === row.dataset.cid);
-    row.querySelectorAll("[data-f]").forEach((el) => (el[el.type === "checkbox" ? "onchange" : "oninput"] =
-      () => (cat[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value)));
-    row.querySelector("[data-delcat]").onclick = () => { c.categories = c.categories.filter((x) => x !== cat); renderApp(); };
-  });
-
-  // months (timeline 2026)
-  main.querySelectorAll("#months [data-mi]").forEach((row) => {
-    const t = c.timeline[+row.dataset.mi];
-    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (t[el.dataset.f] = el.value)));
-    row.querySelector("[data-upmonth]").onclick = () => pickFiles(true, async (files) => {
-      const urls = await uploadFiles(files); t.fotos = [...(t.fotos || []), ...urls]; renderApp();
-    });
-    row.querySelector("[data-delmonth]").onclick = () => { c.timeline.splice(+row.dataset.mi, 1); renderApp(); };
-    row.querySelectorAll("[data-delfoto]").forEach((b) => (b.onclick = () => { t.fotos.splice(+b.dataset.delfoto, 1); renderApp(); }));
-  });
-
-  // 2025 ganadores
-  main.querySelectorAll("[data-g25]").forEach((row) => {
-    const g = c.edition2025.ganadores[+row.dataset.g25];
-    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (g[el.dataset.f] = el.value)));
-    row.querySelector("[data-delg25]").onclick = () => { c.edition2025.ganadores.splice(+row.dataset.g25, 1); renderApp(); };
-  });
-
-  // recuerdos 2025 (timeline por meses, con subida optimizada)
-  if (!Array.isArray(c.edition2025.timeline)) c.edition2025.timeline = [];
-  const save = () => api("/api/content", { method: "PUT", body: JSON.stringify(c) });
-  main.querySelectorAll("#months2025 [data-mi]").forEach((row) => {
-    const t = c.edition2025.timeline[+row.dataset.mi];
-    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (t[el.dataset.f] = el.value)));
-    row.querySelector("[data-upmonth]").onclick = () => pickFiles(true, async (files) => {
-      toast("Subiendo y optimizando…");
-      const entries = await uploadGallery(files, "2025-timeline");
-      t.fotos = [...(t.fotos || []), ...entries];
-      await save(); toast("✅ Fotos agregadas"); renderApp();
-    }, "image/*,video/*");
-    row.querySelector("[data-delmonth]").onclick = () => { c.edition2025.timeline.splice(+row.dataset.mi, 1); renderApp(); };
-    row.querySelectorAll("[data-delfoto]").forEach((b) => (b.onclick = async () => { t.fotos.splice(+b.dataset.delfoto, 1); await save(); renderApp(); }));
-  });
-
-  // add buttons
-  main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
-    if (b.dataset.add === "member") c.members.push({ id: uid("m"), nombre: "Nuevo", apodo: "", foto: "", desc: "" });
-    if (b.dataset.add === "cat") c.categories.push({ id: uid("c"), nombre: "Nueva categoría", emoji: "🏆", desc: "", mayor: false });
-    if (b.dataset.add === "month") c.timeline.push({ mes: "MES", titulo: "", desc: "", fotos: [] });
-    if (b.dataset.add === "month2025") { (c.edition2025.timeline = c.edition2025.timeline || []).push({ mes: "MES", titulo: "", desc: "", fotos: [] }); }
-    if (b.dataset.add === "g25") c.edition2025.ganadores.push({ categoria: "", ganador: "", foto: "" });
-    renderApp();
-  }));
-
-  // save
-  document.getElementById("save").onclick = async () => {
-    const r = await api("/api/content", { method: "PUT", body: JSON.stringify(c) });
-    toast(r.ok ? "✅ Guardado" : "❌ Error al guardar");
-  };
-}
 
 // ---------------- TAB: VOTANTES ----------------
 function tabVotantes(main) {
@@ -305,7 +342,7 @@ function tabVotantes(main) {
   main.innerHTML = `
     <section class="adm-sec">
       <h2>Votantes</h2>
-      <p class="adm-muted">Escribí un nombre por línea. Al generar, cada uno recibe un <b>link personal y secreto</b>.</p>
+      <p class="adm-muted">Un nombre por línea. Al generar, cada uno recibe un <b>link personal y secreto</b>.</p>
       <textarea id="voters-names" class="adm-names" rows="8" placeholder="Fulano&#10;Mengano&#10;...">${H(namesText)}</textarea>
       <button class="adm-save" id="gen">Generar / actualizar links</button>
     </section>

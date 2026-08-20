@@ -3,6 +3,7 @@ import { initTrophy } from "./trophy.js";
 import { startCeremony } from "./ceremony.js";
 import { renderTimelineMosaic } from "./mosaic.js";
 import { loadContent, fechaTexto } from "./content.js";
+import { currentEdition, editionYears } from "./migrate.js";
 
 // ---------- Trofeo 3D ----------
 const canvas = document.getElementById("trophy-canvas");
@@ -83,9 +84,12 @@ document.getElementById("vote-btn").onclick = () => {
     document.getElementById("nav-icon-fallback").hidden = true;
   }
 
+  // edición en curso
+  const ed = currentEdition(content) || { categorias: [], timeline: [], ceremonyDate: "" };
+
   // fecha + countdown
-  document.getElementById("hero-date").textContent = fechaTexto(content.event.ceremonyDate).toUpperCase();
-  startCountdown(content.event.ceremonyDate);
+  document.getElementById("hero-date").textContent = fechaTexto(ed.ceremonyDate).toUpperCase();
+  startCountdown(ed.ceremonyDate);
 
   // integrantes
   document.getElementById("members-grid").innerHTML = content.members.map((m) => `
@@ -98,8 +102,8 @@ document.getElementById("vote-btn").onclick = () => {
       </div>
     </article>`).join("");
 
-  // categorías
-  document.getElementById("cats-grid").innerHTML = content.categories.map((c) => `
+  // categorías (de la edición en curso)
+  document.getElementById("cats-grid").innerHTML = (ed.categorias || []).map((c) => `
     <div class="cat ${c.mayor ? "cat--major" : ""}">
       <div class="cat__emoji">${c.emoji}</div>
       <div>
@@ -108,11 +112,16 @@ document.getElementById("vote-btn").onclick = () => {
       </div>
     </div>`).join("");
 
-  // timeline mosaico
-  renderTimelineMosaic(document.getElementById("timeline-list"), content.timeline);
+  // timeline mosaico (recuerdos de la edición en curso)
+  renderTimelineMosaic(document.getElementById("timeline-list"), ed.timeline || []);
 
-  // Edición 2025: ahora es una página propia (/2025.html)
-  document.getElementById("btn-2025").onclick = () => { window.location.href = "/2025.html"; };
+  // Ediciones anteriores: página propia
+  const past = editionYears(content).filter((y) => y !== content.event.currentYear);
+  const btn = document.getElementById("btn-2025");
+  if (past.length) {
+    btn.textContent = past.length === 1 ? `Edición ${past[0]}` : "Ediciones";
+    btn.onclick = () => { window.location.href = `/2025.html?year=${past[0]}`; };
+  } else { btn.hidden = true; }
 
   observeReveals();
 })();

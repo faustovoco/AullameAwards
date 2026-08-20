@@ -28,10 +28,12 @@ function walk(dir, out = []) {
   return out;
 }
 
-// arma la lista: content.json (data) + todo public/img (img)
+// arma la lista: todo public/img (img). content.json SOLO con --content
+// (por defecto NO se pisa el contenido en vivo, que puede tener ediciones del panel)
 const jobs = [];
+const includeContent = process.argv.includes("--content");
 const contentFile = path.join(ROOT, "data", "content.json");
-if (fs.existsSync(contentFile)) jobs.push({ target: "data", abs: contentFile, rel: "content.json" });
+if (includeContent && fs.existsSync(contentFile)) jobs.push({ target: "data", abs: contentFile, rel: "content.json" });
 for (const abs of walk(IMG_DIR)) jobs.push({ target: "img", abs, rel: path.relative(IMG_DIR, abs).split(path.sep).join("/") });
 
 const totalBytes = jobs.reduce((a, j) => a + fs.statSync(j.abs).size, 0);

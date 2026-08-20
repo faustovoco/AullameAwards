@@ -1,6 +1,7 @@
 import "./style.css";
 import { renderTimelineMosaic } from "./mosaic.js";
 import { loadContent } from "./content.js";
+import { editionYears } from "./migrate.js";
 
 const page = document.getElementById("e2025-page") || document.getElementById("e25-page");
 const H = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -16,38 +17,56 @@ const H = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&
     document.getElementById("nav-icon-fallback").hidden = true;
   }
 
-  const e = content.edition2025 || {};
-  const timeline2025 = (e.timeline || []).filter((m) => (m.fotos && m.fotos.length) || m.titulo);
+  // ediciones pasadas (todas menos la en curso), más nuevas primero
+  const past = editionYears(content).filter((y) => y !== content.event.currentYear);
+  if (!past.length) { page.innerHTML = `<div class="e25__head"><div class="e25__title">Todavía no hay ediciones anteriores</div></div>`; return; }
 
-  page.innerHTML = `
-    <div class="e25__head">
-      <div class="e25__kicker">EDICIÓN ${e.anio || 2025} · I EDICIÓN</div>
-      <div class="e25__title">Los Ganadores</div>
-    </div>
-    <div class="e25__major">
-      <div class="cat__emoji">🐺</div>
-      <h3>AULLAME DEL AÑO</h3>
-      <div class="e25__winner">${H(e.aullameDelAnio?.ganador)}</div>
-      <div class="e25__frase">"${H(e.aullameDelAnio?.frase)}"</div>
-      ${e.aullameDelAnio?.foto ? `<div class="e25__photo e25__photo--major"><img src="${H(e.aullameDelAnio.foto)}" alt=""></div>` : ""}
-    </div>
-    <div class="e25__grid">
-      ${(e.ganadores || []).map((g) => `
-        <div class="e25__card">
-          <div class="e25__cat">${H(g.categoria)}</div>
-          <div class="e25__gan">${H(g.ganador)}</div>
-          <div class="e25__label">GANADOR</div>
-          ${g.foto ? `<div class="e25__photo"><img src="${H(g.foto)}" alt=""></div>` : ""}
-        </div>`).join("")}
-    </div>
-    ${timeline2025.length ? `
-      <div class="e25__recuerdos">
-        <h2 class="section__title">Recuerdos 2025</h2>
-        <div id="e25-mosaic"></div>
-      </div>` : ""}
-  `;
+  const wanted = Number(new URLSearchParams(location.search).get("year"));
+  let year = past.includes(wanted) ? wanted : past[0];
 
-  if (timeline2025.length) {
-    renderTimelineMosaic(document.getElementById("e25-mosaic"), timeline2025);
+  function render() {
+    const e = content.editions[String(year)] || {};
+    const recuerdos = (e.timeline || []).filter((m) => (m.fotos && m.fotos.length) || m.titulo);
+    const selector = past.length > 1 ? `
+      <div class="e25__years">
+        ${past.map((y) => `<button class="e25__year ${y === year ? "on" : ""}" data-year="${y}">${y}</button>`).join("")}
+      </div>` : "";
+
+    page.innerHTML = `
+      <div class="e25__head">
+        <div class="e25__kicker">EDICIÓN ${e.anio || year} · ${H(e.edicion || "")}</div>
+        <div class="e25__title">Los Ganadores</div>
+        ${selector}
+      </div>
+      <div class="e25__major">
+        <div class="cat__emoji">🐺</div>
+        <h3>AULLAME DEL AÑO</h3>
+        <div class="e25__winner">${H(e.aullameDelAnio?.ganador)}</div>
+        <div class="e25__frase">${e.aullameDelAnio?.frase ? `"${H(e.aullameDelAnio.frase)}"` : ""}</div>
+        ${e.aullameDelAnio?.foto ? `<div class="e25__photo e25__photo--major"><img src="${H(e.aullameDelAnio.foto)}" alt=""></div>` : ""}
+      </div>
+      <div class="e25__grid">
+        ${(e.ganadores || []).map((g) => `
+          <div class="e25__card">
+            <div class="e25__cat">${H(g.categoria)}</div>
+            <div class="e25__gan">${H(g.ganador)}</div>
+            <div class="e25__label">GANADOR</div>
+            ${g.foto ? `<div class="e25__photo"><img src="${H(g.foto)}" alt=""></div>` : ""}
+          </div>`).join("")}
+      </div>
+      ${recuerdos.length ? `
+        <div class="e25__recuerdos">
+          <h2 class="section__title">Recuerdos ${year}</h2>
+          <div id="e25-mosaic"></div>
+        </div>` : ""}
+    `;
+
+    if (recuerdos.length) renderTimelineMosaic(document.getElementById("e25-mosaic"), recuerdos);
+    page.querySelectorAll("[data-year]").forEach((b) => (b.onclick = () => {
+      year = Number(b.dataset.year);
+      history.replaceState(null, "", `?year=${year}`);
+      render();
+    }));
   }
+  render();
 })();

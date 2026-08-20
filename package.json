@@ -12,6 +12,7 @@
     "import:2025": "node scripts/import_2025_timeline.mjs",
     "import:2025-ganadores": "node scripts/import_2025.mjs",
     "convert:mov": "node scripts/convert_mov.mjs",
+    "compress:videos": "node scripts/compress_videos.mjs",
     "build": "vite build",
     "start": "node server/index.js --serve",
     "share": "lt --port 8787",

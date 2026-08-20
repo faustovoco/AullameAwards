@@ -14,6 +14,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import ffmpegPath from "ffmpeg-static";
+import { migrateContent, currentEdition } from "../src/migrate.js";
 
 // ffmpeg async (no bloquea el server mientras transcodea un video)
 const pexec = promisify(execFile);
@@ -41,6 +42,17 @@ const readJSON = (f, fallback) => {
 const writeJSON = (f, obj) => fs.writeFileSync(f, JSON.stringify(obj, null, 2));
 const token = () => crypto.randomBytes(9).toString("hex");
 
+// lee el contenido y lo migra al modelo de "ediciones" si hace falta (persiste)
+function readContent() {
+  const raw = readJSON(CONTENT_FILE, null);
+  if (!raw) return { event: { currentYear: 0, logo: "" }, members: [], editions: {} };
+  const migrated = migrateContent(raw);
+  if (migrated !== raw && (!raw.editions || !raw.event?.currentYear)) writeJSON(CONTENT_FILE, migrated);
+  return migrated;
+}
+// migración al arrancar
+try { if (fs.existsSync(CONTENT_FILE)) readContent(); } catch (e) { console.warn("migración:", e.message); }
+
 // seed votes store si no existe (la clave admin se puede fijar con ADMIN_KEY en el hosting)
 if (!fs.existsSync(VOTES_FILE)) {
   writeJSON(VOTES_FILE, { adminKey: process.env.ADMIN_KEY || "aullame2026", locked: true, voters: [], ballots: {} });
@@ -60,7 +72,7 @@ function requireAdmin(req, res, next) {
 
 // ---------- CONTENIDO ----------
 app.get("/api/content", (req, res) => {
-  res.json(readJSON(CONTENT_FILE, null) || {});
+  res.json(readContent());
 });
 app.put("/api/content", requireAdmin, (req, res) => {
   writeJSON(CONTENT_FILE, req.body || {});
@@ -186,7 +198,8 @@ app.post("/api/contribute", uploadBig.array("files", 200), async (req, res) => {
   const year = String(req.query.year || req.body?.year || "2026");
   const mes = String(req.query.mes || req.body?.mes || "").toUpperCase();
   if (!(mes in MES_ORDER)) return res.status(400).json({ error: "Mes inválido" });
-  if (!["2025", "2026"].includes(year)) return res.status(400).json({ error: "Año inválido" });
+  const content = readContent();
+  if (!/^\d{4}$/.test(year) || !content.editions[year]) return res.status(400).json({ error: "Año inválido" });
 
   const destDir = path.join(ROOT, "public", "img", "contrib", year, mes);
   const urlBase = `/img/contrib/${year}/${mes}`;
@@ -197,11 +210,8 @@ app.post("/api/contribute", uploadBig.array("files", 200), async (req, res) => {
   }
   if (!entries.length) return res.status(400).json({ error: "No se pudo procesar ningún archivo" });
 
-  // engancharlo al timeline correspondiente
-  const content = readJSON(CONTENT_FILE, {});
-  let tl;
-  if (year === "2025") { content.edition2025 = content.edition2025 || {}; tl = content.edition2025.timeline = content.edition2025.timeline || []; }
-  else { tl = content.timeline = content.timeline || []; }
+  // engancharlo a la timeline de esa edición
+  const tl = content.editions[year].timeline = content.editions[year].timeline || [];
   let m = tl.find((t) => (t.mes || "").toUpperCase() === mes);
   if (!m) { m = { mes, titulo: "", desc: "", fotos: [] }; tl.push(m); }
   m.fotos = [...(m.fotos || []), ...entries];
@@ -214,14 +224,15 @@ app.post("/api/contribute", uploadBig.array("files", 200), async (req, res) => {
 // ---------- VOTACIÓN (público con token) ----------
 app.get("/api/ballot/:token", (req, res) => {
   const votes = readJSON(VOTES_FILE, {});
-  const content = readJSON(CONTENT_FILE, {});
+  const content = readContent();
   const voter = (votes.voters || []).find((v) => v.token === req.params.token);
   if (!voter) return res.status(404).json({ error: "Link de votación inválido" });
+  const ed = currentEdition(content) || { categorias: [] };
   res.json({
     ok: true,
     voter: { name: voter.name },
     alreadyVoted: !!votes.ballots[voter.token],
-    categories: (content.categories || []).map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji })),
+    categories: (ed.categorias || []).map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji })),
     candidates: (content.members || []).map((m) => ({ id: m.id, nombre: m.nombre, apodo: m.apodo, foto: m.foto })),
   });
 });
@@ -282,13 +293,14 @@ app.post("/api/admin/key", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// calcula el conteo por categoría
+// calcula el conteo por categoría (de la edición en curso)
 function computeResults() {
   const votes = readJSON(VOTES_FILE, {});
-  const content = readJSON(CONTENT_FILE, {});
+  const content = readContent();
+  const ed = currentEdition(content) || { categorias: [] };
   const memberName = (id) => (content.members || []).find((m) => m.id === id)?.nombre || id;
   const ballots = Object.values(votes.ballots || {});
-  return (content.categories || []).map((cat) => {
+  return (ed.categorias || []).map((cat) => {
     const counts = {};
     for (const b of ballots) {
       const pick = b[cat.id];
@@ -324,8 +336,9 @@ app.get("/api/ceremony", (req, res) => {
 app.get("/api/premios", (req, res) => {
   const votes = readJSON(VOTES_FILE, {});
   if (votes.locked) return res.status(403).json({ error: "locked" });
-  const content = readJSON(CONTENT_FILE, {});
-  const descByName = Object.fromEntries((content.categories || []).map((c) => [c.nombre, c.desc || ""]));
+  const content = readContent();
+  const ed = currentEdition(content) || { categorias: [] };
+  const descByName = Object.fromEntries((ed.categorias || []).map((c) => [c.nombre, c.desc || ""]));
   const premios = computeResults().map((r) => ({
     nombre: r.categoria,
     desc: descByName[r.categoria] || "",

@@ -20,6 +20,11 @@
 .adm-tabs button { background: transparent; border: 1px solid transparent; color: var(--muted);
   padding: 8px 16px; border-radius: 999px; cursor: pointer; font-family: var(--serif); letter-spacing: 1px; }
 .adm-tabs button.on { color: var(--gold-hi); border-color: var(--line); background: rgba(233,200,116,.08); }
+.adm-tabsep { width: 1px; align-self: stretch; background: var(--line); margin: 4px 4px; }
+.adm-badge { font-size: 11px; letter-spacing: 1px; color: #14100a; background: var(--gold-lite); border-radius: 999px; padding: 2px 10px; vertical-align: middle; font-family: var(--sans); }
+.adm-fin { margin-top: 14px; color: var(--bone); }
+.adm-fin input { width: auto; }
+select.adm-none {}
 .adm-view { color: var(--teal); font-size: 13px; }
 
 .adm-main { max-width: 960px; margin: 0 auto; padding: 30px 20px 120px; }
