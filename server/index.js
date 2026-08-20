@@ -10,9 +10,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import sharp from "sharp";
 import ffmpegPath from "ffmpeg-static";
+
+// ffmpeg async (no bloquea el server mientras transcodea un video)
+const pexec = promisify(execFile);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -86,17 +90,43 @@ async function optimizeInto(srcPath, originalName, destDir, urlBase) {
   fs.mkdirSync(path.join(destDir, "view"), { recursive: true });
   const base = path.parse(srcPath).name;
   if (VIDEO_EXT.test(originalName)) {
-    const vname = base + (path.extname(originalName).toLowerCase() || ".mp4");
+    const origExt = (path.extname(originalName) || ".mp4").toLowerCase();
+    const origCompatible = /\.(mp4|webm)$/i.test(origExt);
+    const origSize = fs.statSync(srcPath).size;
+    const tmpV = path.join(destDir, base + ".__t.mp4");
+    // COMPRIMIR el video al subirlo (async, no bloquea el server). CRF 21, máx 1080p.
+    let compressed = false;
+    try {
+      await pexec(ffmpegPath, ["-y", "-i", srcPath,
+        "-vf", "scale='if(gte(iw,ih),min(1920,iw),-2)':'if(gte(iw,ih),-2,min(1920,ih))'",
+        "-c:v", "libx264", "-crf", "21", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", tmpV],
+        { maxBuffer: 1 << 26 });
+      compressed = fs.existsSync(tmpV) && fs.statSync(tmpV).size > 0;
+    } catch (e) { compressed = false; }
+
+    // usar el comprimido si es más chico, o si el original no es compatible (.mov, etc.)
+    let vname;
+    if (compressed && (fs.statSync(tmpV).size < origSize || !origCompatible)) {
+      vname = base + ".mp4";
+      fs.renameSync(tmpV, path.join(destDir, vname));
+    } else {
+      fs.rmSync(tmpV, { force: true });
+      vname = base + (origCompatible ? origExt : ".mp4"); // ya estaba óptimo → dejar original
+      fs.copyFileSync(srcPath, path.join(destDir, vname));
+    }
+    fs.rmSync(srcPath, { force: true });
     const vdest = path.join(destDir, vname);
-    fs.renameSync(srcPath, vdest);
     const entry = { video: `${urlBase}/${vname}` };
+    // fotograma de portada desde el video ya comprimido
     const tmp = path.join(destDir, base + "__f.jpg");
     try {
-      execFileSync(ffmpegPath, ["-y", "-ss", "0.5", "-i", vdest, "-frames:v", "1", "-q:v", "3", tmp], { stdio: "ignore" });
+      await pexec(ffmpegPath, ["-y", "-ss", "0.5", "-i", vdest, "-frames:v", "1", "-q:v", "3", tmp], { maxBuffer: 1 << 26 });
       if (fs.existsSync(tmp) && fs.statSync(tmp).size > 0) {
         await sharp(tmp).resize({ width: 160, withoutEnlargement: true }).webp({ quality: 60 }).toFile(path.join(destDir, "thumb", base + ".webp"));
         await sharp(tmp).resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: true }).webp({ quality: 72 }).toFile(path.join(destDir, "view", base + ".webp"));
         entry.t = `${urlBase}/thumb/${base}.webp`;
+        entry.poster = `${urlBase}/view/${base}.webp`;
       }
     } catch (e) { /* sin poster */ }
     fs.rmSync(tmp, { force: true });
