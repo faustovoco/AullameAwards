@@ -612,6 +612,48 @@ a { color: inherit; text-decoration: none; }
 .vote-back { display: inline-block; margin-top: 24px; color: var(--gold-lite); font-family: var(--serif); letter-spacing: 2px; border: 1px solid var(--line); padding: 12px 26px; border-radius: 999px; }
 .vote-back:hover { border-color: var(--gold-lite); }
 
+/* ===== GALERÍA ===== */
+.gal-page { max-width: 1100px; margin: 0 auto; padding: 100px 20px 80px; }
+.gal-loading { text-align: center; color: var(--muted); margin-top: 30vh; letter-spacing: 2px; }
+.gal-head { margin-bottom: 30px; }
+.gal-title { font-family: var(--serif); font-weight: 800; font-size: clamp(30px, 6vw, 54px); text-align: center;
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.gal-albums { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 22px 0 16px; }
+.gal-alb { font-family: var(--serif); letter-spacing: 1px; font-size: 14px; color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 18px; cursor: pointer; transition: all .2s; }
+.gal-alb:hover { color: var(--gold-lite); border-color: var(--gold-lite); }
+.gal-alb.on { color: #14100a; background: linear-gradient(180deg, var(--gold-hi), var(--gold)); border-color: transparent; }
+.gal-alb--add { color: var(--teal); }
+.gal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+.gal-btn { font-family: var(--sans); font-size: 14px; color: var(--bone); background: rgba(255,255,255,.04);
+  border: 1px solid var(--line); border-radius: 999px; padding: 10px 18px; cursor: pointer; transition: all .2s; }
+.gal-btn:hover { border-color: var(--gold-lite); }
+.gal-btn--up { color: #14100a; background: linear-gradient(180deg, var(--gold-hi), var(--gold)); border: none; }
+.gal-btn--del { color: #ff9b9b; border-color: rgba(255,120,120,.4); }
+.gal-selinfo { color: var(--gold-lite); font-size: 14px; }
+.gal-empty { text-align: center; color: var(--muted); margin-top: 40px; }
+
+.gal-upform { border: 1px solid var(--gold-lite); border-radius: 14px; padding: 20px; margin-bottom: 24px; background: rgba(233,200,116,.04); }
+.gal-upform__row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.gal-upform__row label { display: block; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+.gal-upform__row select, .gal-upform__row input { width: 100%; margin-top: 5px; background: rgba(0,0,0,.35); border: 1px solid var(--line); color: var(--bone); padding: 10px; border-radius: 8px; }
+.gal-drop { display: flex; align-items: center; justify-content: center; min-height: 90px; border: 1.5px dashed var(--line); border-radius: 12px; cursor: pointer; color: var(--gold-lite); text-align: center; padding: 14px; }
+.gal-drop:hover { border-color: var(--gold-lite); }
+.gal-upform__actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.gal-upstatus { color: var(--muted); font-size: 13px; }
+@media (max-width: 600px) { .gal-upform__row { grid-template-columns: 1fr; } }
+
+.gal-selgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.gal-seltile { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; background: linear-gradient(135deg, #12212a, #0a1417); }
+.gal-seltile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-vidph { display: grid; place-items: center; width: 100%; height: 100%; font-size: 24px; }
+.gal-seltile .gal-check { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,.5); color: transparent; display: grid; place-items: center; font-size: 13px; border: 1px solid rgba(255,255,255,.4); }
+.gal-seltile.sel { border-color: var(--gold-hi); }
+.gal-seltile.sel .gal-check { background: var(--gold-hi); color: #14100a; border-color: var(--gold-hi); }
+.gal-seltile.sel img { opacity: .7; }
+
 /* ===== PÁGINA SUBIR FOTOS ===== */
 .subir-page { min-height: 100svh; display: flex; align-items: center; justify-content: center; padding: 30px 18px; }
 .subir-card { width: 100%; max-width: 460px; border: 1px solid var(--line); border-radius: 18px;

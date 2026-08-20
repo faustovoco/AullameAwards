@@ -1,7 +1,7 @@
 import "./style.css";
 import { renderTimelineMosaic } from "./mosaic.js";
 import { loadContent } from "./content.js";
-import { editionYears } from "./migrate.js";
+import { editionYears, editionTimeline } from "./migrate.js";
 
 const page = document.getElementById("e2025-page") || document.getElementById("e25-page");
 const H = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -26,7 +26,7 @@ const H = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&
 
   function render() {
     const e = content.editions[String(year)] || {};
-    const recuerdos = (e.timeline || []).filter((m) => (m.fotos && m.fotos.length) || m.titulo);
+    const recuerdos = editionTimeline(content, year);
     const selector = past.length > 1 ? `
       <div class="e25__years">
         ${past.map((y) => `<button class="e25__year ${y === year ? "on" : ""}" data-year="${y}">${y}</button>`).join("")}

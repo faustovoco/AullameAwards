@@ -18,6 +18,7 @@ export default defineConfig({
         admin: resolve(__dirname, "admin.html"),
         e2025: resolve(__dirname, "2025.html"),
         subir: resolve(__dirname, "subir.html"),
+        galeria: resolve(__dirname, "galeria.html"),
       },
     },
   },

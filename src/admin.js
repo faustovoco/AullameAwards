@@ -114,7 +114,7 @@ function addYear() {
     anio: year, edicion: "", ceremonyDate: "",
     finalizada: year < c.event.currentYear,
     categorias: cur ? JSON.parse(JSON.stringify(cur.categorias)) : [],
-    ganadores: [], aullameDelAnio: { ganador: "", foto: "", frase: "" }, timeline: [],
+    ganadores: [], aullameDelAnio: { ganador: "", foto: "", frase: "" }, meses: [],
   };
   saveContent();
   state.tab = "y:" + year; renderApp();
@@ -216,8 +216,10 @@ function tabYear(main, yearStr) {
     </section>`}
 
     <section class="adm-sec">
-      <h2>Recuerdos ${yearStr} (timeline por meses) <button class="adm-add" data-add="month">+ Agregar mes</button></h2>
-      <div id="months">${(ed.timeline || []).map(monthRow).join("")}</div>
+      <h2>Recuerdos ${yearStr} — títulos de los meses</h2>
+      <p class="adm-muted">Las fotos se suben y gestionan en la <a class="adm-view" href="/galeria.html" target="_blank">Galería</a>. Acá solo ponés el título/descripción de cada mes (aparecen en la timeline del año).</p>
+      <div id="months">${(ed.meses || []).map(mesMetaRow).join("")}</div>
+      <button class="adm-add" data-add="month">+ Agregar mes</button>
     </section>
 
     <div class="adm-savebar">
@@ -270,27 +272,19 @@ function tabYear(main, yearStr) {
     });
   }
 
-  // recuerdos (timeline por meses, subida optimizada)
-  if (!ed.timeline) ed.timeline = [];
-  const dir = `edicion-${yearStr}`;
+  // recuerdos: solo metadatos de meses (título/descripción); las fotos van en la Galería
+  if (!ed.meses) ed.meses = [];
   main.querySelectorAll("#months [data-mi]").forEach((row) => {
-    const t = ed.timeline[+row.dataset.mi];
-    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (t[el.dataset.f] = el.value)));
-    row.querySelector("[data-upmonth]").onclick = () => pickFiles(true, async (files) => {
-      toast("Subiendo y optimizando…");
-      const entries = await uploadGallery(files, dir);
-      t.fotos = [...(t.fotos || []), ...entries];
-      await saveContent(); toast("✅ Fotos agregadas"); renderApp();
-    }, "image/*,video/*");
-    row.querySelector("[data-delmonth]").onclick = () => { ed.timeline.splice(+row.dataset.mi, 1); renderApp(); };
-    row.querySelectorAll("[data-delfoto]").forEach((b) => (b.onclick = async () => { t.fotos.splice(+b.dataset.delfoto, 1); await saveContent(); renderApp(); }));
+    const m = ed.meses[+row.dataset.mi];
+    row.querySelectorAll("[data-f]").forEach((el) => (el.oninput = () => (m[el.dataset.f] = el.value)));
+    row.querySelector("[data-delmonth]").onclick = () => { ed.meses.splice(+row.dataset.mi, 1); renderApp(); };
   });
 
   // add
   main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
     if (b.dataset.add === "cat") ed.categorias.push({ id: uid("c"), nombre: "Nueva categoría", emoji: "🏆", desc: "", mayor: false, dato: false, nominados: [], imagen: "" });
     if (b.dataset.add === "gan") ed.ganadores.push({ categoria: "", ganador: "", foto: "" });
-    if (b.dataset.add === "month") ed.timeline.push({ mes: "MES", titulo: "", desc: "", fotos: [] });
+    if (b.dataset.add === "month") ed.meses.push({ mes: "ENE", titulo: "", desc: "" });
     renderApp();
   }));
 
@@ -338,6 +332,14 @@ const ganRow = (g, i) => `
     <input data-f="categoria" placeholder="Categoría" value="${H(g.categoria)}" />
     <input data-f="ganador" placeholder="Ganador" value="${H(g.ganador)}" />
     <button class="adm-del" data-delgan>✕</button>
+  </div>`;
+
+const mesMetaRow = (m, i) => `
+  <div class="adm-row" data-mi="${i}">
+    <input class="adm-mes" data-f="mes" value="${H(m.mes)}" />
+    <input data-f="titulo" placeholder="Título (ej: Escapada a Brasil)" value="${H(m.titulo)}" />
+    <input data-f="desc" placeholder="Descripción" value="${H(m.desc)}" />
+    <button class="adm-del" data-delmonth>✕</button>
   </div>`;
 
 const monthRow = (t, i) => `

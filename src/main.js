@@ -3,7 +3,7 @@ import { initTrophy } from "./trophy.js";
 import { startCeremony } from "./ceremony.js";
 import { renderTimelineMosaic } from "./mosaic.js";
 import { loadContent, fechaTexto } from "./content.js";
-import { currentEdition, editionYears } from "./migrate.js";
+import { currentEdition, editionYears, editionTimeline } from "./migrate.js";
 
 // ---------- Trofeo 3D ----------
 const canvas = document.getElementById("trophy-canvas");
@@ -112,8 +112,8 @@ document.getElementById("vote-btn").onclick = () => {
       </div>
     </div>`).join("");
 
-  // timeline mosaico (recuerdos de la edición en curso)
-  renderTimelineMosaic(document.getElementById("timeline-list"), ed.timeline || []);
+  // timeline mosaico (recuerdos de la edición en curso, desde la galería)
+  renderTimelineMosaic(document.getElementById("timeline-list"), editionTimeline(content, content.event.currentYear));
 
   // Ediciones anteriores: página propia
   const past = editionYears(content).filter((y) => y !== content.event.currentYear);

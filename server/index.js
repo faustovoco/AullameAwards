@@ -14,7 +14,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import ffmpegPath from "ffmpeg-static";
-import { migrateContent, currentEdition } from "../src/migrate.js";
+import { migrateContent, currentEdition, mesCode, MES_ORDER } from "../src/migrate.js";
 
 // ffmpeg async (no bloquea el server mientras transcodea un video)
 const pexec = promisify(execFile);
@@ -191,34 +191,84 @@ app.post("/api/upload-gallery", requireAdmin, uploadBig.array("files", 300), asy
   res.json({ entries });
 });
 
-// ---------- CONTRIBUCIÓN PÚBLICA (los integrantes suben sus fotos) ----------
-// Sin clave: cualquiera con el link sube. Se optimiza y aparece al toque.
-const MES_ORDER = { ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,OCT:9,NOV:10,DIC:11 };
-app.post("/api/contribute", uploadBig.array("files", 200), async (req, res) => {
-  const year = String(req.query.year || req.body?.year || "2026");
-  const mes = String(req.query.mes || req.body?.mes || "").toUpperCase();
-  if (!(mes in MES_ORDER)) return res.status(400).json({ error: "Mes inválido" });
+// ---------- GALERÍA (fuente única de fotos; clave por acción) ----------
+const galId = () => "g" + crypto.randomBytes(6).toString("hex");
+function galleryOk(req, content) {
+  const code = req.get("x-gallery-code") || req.query.codigo || req.body?.codigo;
+  return code && String(code) === String(content.gallery?.codigo || "2324");
+}
+function requireGallery(req, res, next) {
   const content = readContent();
-  if (!/^\d{4}$/.test(year) || !content.editions[year]) return res.status(400).json({ error: "Año inválido" });
+  if (!galleryOk(req, content)) return res.status(401).json({ error: "Clave incorrecta" });
+  req._content = content;
+  next();
+}
 
-  const destDir = path.join(ROOT, "public", "img", "contrib", year, mes);
-  const urlBase = `/img/contrib/${year}/${mes}`;
-  const entries = [];
+// subir fotos a la galería. album (default general), year/mes OPCIONALES.
+app.post("/api/gallery/upload", uploadBig.array("files", 300), async (req, res) => {
+  const content = readContent();
+  if (!galleryOk(req, content)) return res.status(401).json({ error: "Clave incorrecta" });
+  const albumId = String(req.query.album || "general").replace(/[^a-z0-9_-]/gi, "") || "general";
+  const yearRaw = String(req.query.year || "").trim();
+  const year = /^\d{4}$/.test(yearRaw) ? Number(yearRaw) : null;
+  const mes = mesCode(req.query.mes || "") || null;
+  const destDir = path.join(ROOT, "public", "img", "gallery", albumId);
+  const urlBase = `/img/gallery/${albumId}`;
+  const added = [];
   for (const f of (req.files || [])) {
-    try { entries.push(await optimizeInto(f.path, f.originalname, destDir, urlBase)); }
-    catch (e) { console.error("contrib optimize fail", f.originalname, e.message); }
+    try {
+      const e = await optimizeInto(f.path, f.originalname, destDir, urlBase);
+      added.push({ id: galId(), ...e, year, month: (year ? mes : null), albumId });
+    } catch (e) { console.error("gallery optimize fail", f.originalname, e.message); }
   }
-  if (!entries.length) return res.status(400).json({ error: "No se pudo procesar ningún archivo" });
-
-  // engancharlo a la timeline de esa edición
-  const tl = content.editions[year].timeline = content.editions[year].timeline || [];
-  let m = tl.find((t) => (t.mes || "").toUpperCase() === mes);
-  if (!m) { m = { mes, titulo: "", desc: "", fotos: [] }; tl.push(m); }
-  m.fotos = [...(m.fotos || []), ...entries];
-  tl.sort((a, b) => (MES_ORDER[(a.mes || "").toUpperCase()] ?? 99) - (MES_ORDER[(b.mes || "").toUpperCase()] ?? 99));
+  if (!added.length) return res.status(400).json({ error: "No se pudo procesar ningún archivo" });
+  content.gallery.fotos.push(...added);
   writeJSON(CONTENT_FILE, content);
+  res.json({ ok: true, count: added.length });
+});
 
-  res.json({ ok: true, count: entries.length });
+// borrar fotos por id
+app.post("/api/gallery/delete", express.json(), requireGallery, (req, res) => {
+  const content = req._content;
+  const ids = new Set((req.body?.ids) || []);
+  const before = content.gallery.fotos.length;
+  content.gallery.fotos = content.gallery.fotos.filter((f) => !ids.has(f.id));
+  writeJSON(CONTENT_FILE, content);
+  res.json({ ok: true, removed: before - content.gallery.fotos.length });
+});
+
+// reclasificar fotos (año/mes/álbum)
+app.post("/api/gallery/classify", express.json(), requireGallery, (req, res) => {
+  const content = req._content;
+  const ids = new Set((req.body?.ids) || []);
+  const { year, mes, albumId } = req.body || {};
+  for (const f of content.gallery.fotos) {
+    if (!ids.has(f.id)) continue;
+    if (year !== undefined) { f.year = /^\d{4}$/.test(String(year)) ? Number(year) : null; if (!f.year) f.month = null; }
+    if (mes !== undefined) f.month = f.year ? (mesCode(mes) || null) : null;
+    if (albumId !== undefined) f.albumId = String(albumId).replace(/[^a-z0-9_-]/gi, "") || "general";
+  }
+  writeJSON(CONTENT_FILE, content);
+  res.json({ ok: true });
+});
+
+// álbumes: crear / renombrar / borrar (las fotos del álbum borrado pasan a general)
+app.post("/api/gallery/album", express.json(), requireGallery, (req, res) => {
+  const content = req._content;
+  const { action, nombre, id } = req.body || {};
+  const g = content.gallery;
+  if (action === "create") {
+    const aid = "a" + crypto.randomBytes(4).toString("hex");
+    g.albums.push({ id: aid, nombre: String(nombre || "Álbum").slice(0, 40) });
+  } else if (action === "rename") {
+    const a = g.albums.find((x) => x.id === id); if (a) a.nombre = String(nombre || "").slice(0, 40);
+  } else if (action === "delete") {
+    if (id === "general") return res.status(400).json({ error: "No se puede borrar General" });
+    g.albums = g.albums.filter((x) => x.id !== id);
+    for (const f of g.fotos) if (f.albumId === id) f.albumId = "general";
+  }
+  writeJSON(CONTENT_FILE, content);
+  res.json({ ok: true, albums: g.albums });
 });
 
 // ---------- VOTACIÓN (público con token) ----------
