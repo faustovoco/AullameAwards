@@ -156,12 +156,13 @@ app.get("/api/seed-check", requireAdmin, (req, res) => {
   const exists = fs.existsSync(p) && (!req.query.size || fs.statSync(p).size === Number(req.query.size));
   res.json({ exists });
 });
-// escribe un archivo (body crudo) en el volumen
-app.put("/api/seed-file", requireAdmin, express.raw({ type: "*/*", limit: "300mb" }), (req, res) => {
+// escribe un archivo (body crudo) en el volumen. append=1 => agrega (para subir por partes)
+app.put("/api/seed-file", requireAdmin, express.raw({ type: "*/*", limit: "64mb" }), (req, res) => {
   const p = seedResolve(req.query.target, req.query.path);
   if (!p) return res.status(400).json({ error: "path inválido" });
   fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, req.body);
+  if (req.query.append === "1") fs.appendFileSync(p, req.body);
+  else fs.writeFileSync(p, req.body); // primer chunk (o archivo entero) trunca
   res.json({ ok: true, size: req.body.length });
 });
 

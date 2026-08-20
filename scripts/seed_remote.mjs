@@ -40,21 +40,35 @@ console.log(`Subiendo ${jobs.length} archivos (${(totalBytes / 1e9).toFixed(2)} 
 let done = 0, sent = 0, skipped = 0, failed = 0, bytesSent = 0;
 const mb = (b) => (b / 1048576).toFixed(1);
 
+const CHUNK = 6 * 1024 * 1024; // 6 MB por request (evita timeouts del proxy)
+
 async function one(job) {
   const size = fs.statSync(job.abs).size;
   const q = `target=${job.target}&path=${encodeURIComponent(job.rel)}`;
+  const H = { "x-admin-key": KEY, "content-type": "application/octet-stream" };
   try {
     // ¿ya está?
     const chk = await fetch(`${BASE}/api/seed-check?${q}&size=${size}`, { headers: { "x-admin-key": KEY } });
     if (chk.ok && (await chk.json()).exists) { skipped++; return; }
-    // subir
-    const body = fs.readFileSync(job.abs);
-    const r = await fetch(`${BASE}/api/seed-file?${q}`, {
-      method: "PUT",
-      headers: { "x-admin-key": KEY, "content-type": "application/octet-stream" },
-      body,
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
+
+    if (size <= CHUNK) {
+      // archivo chico: un solo PUT
+      const r = await fetch(`${BASE}/api/seed-file?${q}`, { method: "PUT", headers: H, body: fs.readFileSync(job.abs) });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+    } else {
+      // grande: por partes (primer chunk trunca, el resto agrega)
+      const fd = fs.openSync(job.abs, "r");
+      const buf = Buffer.alloc(CHUNK);
+      let off = 0, first = true;
+      try {
+        while (off < size) {
+          const n = fs.readSync(fd, buf, 0, CHUNK, off);
+          const r = await fetch(`${BASE}/api/seed-file?${q}&append=${first ? 0 : 1}`, { method: "PUT", headers: H, body: buf.subarray(0, n) });
+          if (!r.ok) throw new Error("HTTP " + r.status + " (chunk @" + off + ")");
+          off += n; first = false;
+        }
+      } finally { fs.closeSync(fd); }
+    }
     sent++; bytesSent += size;
   } catch (e) {
     failed++;
