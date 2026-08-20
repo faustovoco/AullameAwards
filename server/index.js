@@ -139,6 +139,32 @@ async function optimizeInto(srcPath, originalName, destDir, urlBase) {
   return { t: `${urlBase}/thumb/${base}.webp`, v: `${urlBase}/view/${base}.webp` };
 }
 
+// ---------- CARGA INICIAL (seed): sube archivos ya optimizados al volumen ----------
+// Solo admin. Sube archivo por archivo (sin reprocesar) a public/img o data/.
+const SEED_ROOTS = { img: path.join(ROOT, "public", "img"), data: DATA_DIR };
+function seedResolve(target, rel) {
+  const base = SEED_ROOTS[target];
+  if (!base || !rel) return null;
+  const p = path.normalize(path.join(base, rel));
+  if (p !== base && !p.startsWith(base + path.sep)) return null; // no escapar del dir
+  return p;
+}
+// ¿ya existe (con ese tamaño)? para saltarlo y hacer la carga re-ejecutable
+app.get("/api/seed-check", requireAdmin, (req, res) => {
+  const p = seedResolve(req.query.target, req.query.path);
+  if (!p) return res.status(400).json({ error: "path inválido" });
+  const exists = fs.existsSync(p) && (!req.query.size || fs.statSync(p).size === Number(req.query.size));
+  res.json({ exists });
+});
+// escribe un archivo (body crudo) en el volumen
+app.put("/api/seed-file", requireAdmin, express.raw({ type: "*/*", limit: "300mb" }), (req, res) => {
+  const p = seedResolve(req.query.target, req.query.path);
+  if (!p) return res.status(400).json({ error: "path inválido" });
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, req.body);
+  res.json({ ok: true, size: req.body.length });
+});
+
 // ?dir=nombre-de-carpeta (bajo public/img). Devuelve entries listos para el mosaico.
 app.post("/api/upload-gallery", requireAdmin, uploadBig.array("files", 300), async (req, res) => {
   const safeDir = String(req.query.dir || "gallery").replace(/[^a-z0-9_-]/gi, "");
