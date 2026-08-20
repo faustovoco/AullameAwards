@@ -12,8 +12,18 @@
 // }
 export function migrateContent(c) {
   if (!c || typeof c !== "object") return c;
-  if (c.editions && c.event && c.event.currentYear) return c; // ya migrado
+  const out = (c.editions && c.event && c.event.currentYear) ? c : doMigrate(c);
+  // normalizar categorías: cada una con su terna (nominados) e imagen
+  for (const y of Object.keys(out.editions || {})) {
+    for (const cat of (out.editions[y].categorias || [])) {
+      if (!Array.isArray(cat.nominados)) cat.nominados = [];
+      if (typeof cat.imagen !== "string") cat.imagen = "";
+    }
+  }
+  return out;
+}
 
+function doMigrate(c) {
   const out = {
     event: { currentYear: 0, logo: (c.event && c.event.logo) || "" },
     members: c.members || [],

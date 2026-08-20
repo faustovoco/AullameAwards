@@ -228,12 +228,18 @@ app.get("/api/ballot/:token", (req, res) => {
   const voter = (votes.voters || []).find((v) => v.token === req.params.token);
   if (!voter) return res.status(404).json({ error: "Link de votación inválido" });
   const ed = currentEdition(content) || { categorias: [] };
+  const members = content.members || [];
+  const byId = Object.fromEntries(members.map((m) => [m.id, m]));
   res.json({
     ok: true,
     voter: { name: voter.name },
     alreadyVoted: !!votes.ballots[voter.token],
-    categories: (ed.categorias || []).map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji })),
-    candidates: (content.members || []).map((m) => ({ id: m.id, nombre: m.nombre, apodo: m.apodo, foto: m.foto })),
+    categories: (ed.categorias || []).map((c) => {
+      // terna: si tiene nominados, se vota entre ellos; si no, entre todos los integrantes
+      const ids = (c.nominados && c.nominados.length) ? c.nominados : members.map((m) => m.id);
+      const nominados = ids.map((id) => byId[id]).filter(Boolean).map((m) => ({ id: m.id, nombre: m.nombre, apodo: m.apodo, foto: m.foto }));
+      return { id: c.id, nombre: c.nombre, emoji: c.emoji, desc: c.desc || "", imagen: c.imagen || "", nominados };
+    }),
   });
 });
 

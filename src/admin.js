@@ -1,6 +1,6 @@
 import "./style.css";
 import "./admin.css";
-import { editionYears } from "./migrate.js";
+import { editionYears, currentEdition } from "./migrate.js";
 
 const root = document.getElementById("admin-root");
 const state = {
@@ -337,6 +337,8 @@ const monthRow = (t, i) => `
 // ---------------- TAB: VOTANTES ----------------
 function tabVotantes(main) {
   const vs = state.voteState || { voters: [] };
+  const c = state.content;
+  const ed = currentEdition(c) || { categorias: [] };
   const origin = location.origin;
   const namesText = vs.voters.map((v) => v.name).join("\n");
   main.innerHTML = `
@@ -359,6 +361,13 @@ function tabVotantes(main) {
           </div>`;
         }).join("") || `<p class="adm-muted">Todavía no generaste links.</p>`}
       </div>
+    </section>
+
+    <section class="adm-sec">
+      <h2>Ternas (nominados por categoría) · edición ${c.event.currentYear}</h2>
+      <p class="adm-muted">Definí quiénes están nominados en cada categoría, con una descripción e imagen. En la votación se elige entre estos.</p>
+      <div id="ternas">${(ed.categorias || []).map((cat) => ternaRow(cat, c.members)).join("")}</div>
+      <button class="adm-save" id="save-ternas">💾 Guardar ternas</button>
     </section>`;
 
   document.getElementById("gen").onclick = async () => {
@@ -370,7 +379,45 @@ function tabVotantes(main) {
   main.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => {
     navigator.clipboard.writeText(b.dataset.copy); toast("📋 Link copiado");
   }));
+
+  // --- ternas ---
+  main.querySelectorAll("[data-tcid]").forEach((row) => {
+    const cat = (ed.categorias || []).find((x) => x.id === row.dataset.tcid);
+    if (!cat) return;
+    if (!Array.isArray(cat.nominados)) cat.nominados = [];
+    row.querySelector("[data-tf='desc']").oninput = (e) => (cat.desc = e.target.value);
+    row.querySelector("[data-terna-img]").onclick = () => pickFiles(false, async (files) => {
+      const [url] = await uploadFiles(files); cat.imagen = url; await saveContent(); renderApp();
+    });
+    const di = row.querySelector("[data-terna-imgdel]");
+    if (di) di.onclick = async () => { cat.imagen = ""; await saveContent(); renderApp(); };
+    row.querySelectorAll("[data-part]").forEach((chk) => (chk.onchange = () => {
+      const id = chk.dataset.part;
+      if (chk.checked) { if (!cat.nominados.includes(id)) cat.nominados.push(id); }
+      else cat.nominados = cat.nominados.filter((x) => x !== id);
+    }));
+  });
+  document.getElementById("save-ternas").onclick = async () => toast((await saveContent()).ok ? "✅ Ternas guardadas" : "❌ Error");
 }
+
+const ternaRow = (cat, members) => `
+  <div class="adm-terna" data-tcid="${cat.id}">
+    <div class="adm-terna__title">${cat.emoji || "🏆"} ${H(cat.nombre)}</div>
+    <div class="adm-terna__grid">
+      <div class="adm-terna__img">
+        <div class="adm-terna__prev">${cat.imagen ? `<img src="${H(cat.imagen)}">` : "🖼️"}</div>
+        <button class="adm-up" data-terna-img>Imagen</button>
+        ${cat.imagen ? `<button class="adm-del" data-terna-imgdel>Quitar</button>` : ""}
+      </div>
+      <div class="adm-terna__body">
+        <input data-tf="desc" placeholder="Descripción de la categoría" value="${H(cat.desc || "")}" />
+        <div class="adm-terna__parts">
+          ${(members || []).map((m) => `
+            <label class="adm-check2"><input type="checkbox" data-part="${m.id}" ${(cat.nominados || []).includes(m.id) ? "checked" : ""}/> ${H(m.nombre)}</label>`).join("")}
+        </div>
+      </div>
+    </div>
+  </div>`;
 
 // ---------------- TAB: RESULTADOS ----------------
 async function tabResultados(main) {

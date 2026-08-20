@@ -28,13 +28,12 @@ async function main() {
 }
 
 function renderBallot(data) {
-  const cats = data.categories;
-  const cands = data.candidates;
+  const cats = data.categories.filter((c) => (c.nominados || []).length > 0);
   shell(`
     <div class="vote-head">
       <div class="vote-kicker">AULLAME AWARDS · VOTACIÓN SECRETA</div>
       <h1 class="vote-title">Hola, ${H(data.voter.name)}</h1>
-      <p class="vote-sub">Elegí un ganador por categoría. Tu voto es anónimo — nadie sabe qué votaste.</p>
+      <p class="vote-sub">Elegí un ganador por categoría entre los nominados. Tu voto es anónimo.</p>
     </div>
     <form id="ballot"></form>
     <div class="vote-actions">
@@ -47,8 +46,10 @@ function renderBallot(data) {
   form.innerHTML = cats.map((c) => `
     <fieldset class="vote-cat" data-cat="${c.id}">
       <legend><span class="vote-emoji">${c.emoji || "🏆"}</span> ${H(c.nombre)}</legend>
+      ${c.imagen ? `<div class="vote-cat__img"><img src="${H(c.imagen)}" alt=""></div>` : ""}
+      ${c.desc ? `<p class="vote-cat__desc">${H(c.desc)}</p>` : ""}
       <div class="vote-options">
-        ${cands.map((m) => `
+        ${(c.nominados || []).map((m) => `
           <label class="vote-opt">
             <input type="radio" name="${c.id}" value="${m.id}" />
             <span class="vote-opt__box">
