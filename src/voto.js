@@ -28,7 +28,8 @@ async function main() {
 }
 
 function renderBallot(data) {
-  const cats = data.categories.filter((c) => (c.nominados || []).length > 0);
+  const cats = data.categories;
+  const votables = cats.filter((c) => !c.dato && (c.nominados || []).length > 0);
   shell(`
     <div class="vote-head">
       <div class="vote-kicker">AULLAME AWARDS · VOTACIÓN SECRETA</div>
@@ -44,10 +45,11 @@ function renderBallot(data) {
 
   const form = document.getElementById("ballot");
   form.innerHTML = cats.map((c) => `
-    <fieldset class="vote-cat" data-cat="${c.id}">
-      <legend><span class="vote-emoji">${c.emoji || "🏆"}</span> ${H(c.nombre)}</legend>
+    <fieldset class="vote-cat ${c.dato ? "vote-cat--dato" : ""}" data-cat="${c.id}">
+      <legend><span class="vote-emoji">${c.emoji || "🏆"}</span> ${H(c.nombre)}${c.dato ? ` <span class="vote-dato-tag">se decide por datos</span>` : ""}</legend>
       ${c.imagen ? `<div class="vote-cat__img"><img src="${H(c.imagen)}" alt=""></div>` : ""}
       ${c.desc ? `<p class="vote-cat__desc">${H(c.desc)}</p>` : ""}
+      ${c.dato ? `<p class="vote-dato-note">Este premio no se vota — se decide por datos del año. Se muestra para que lo conozcas.</p>` : `
       <div class="vote-options">
         ${(c.nominados || []).map((m) => `
           <label class="vote-opt">
@@ -58,14 +60,14 @@ function renderBallot(data) {
               ${m.apodo ? `<span class="vote-opt__apodo">${H(m.apodo)}</span>` : ""}
             </span>
           </label>`).join("")}
-      </div>
+      </div>`}
     </fieldset>`).join("");
 
   const submit = document.getElementById("submit");
   const progress = document.getElementById("progress");
-  const total = cats.length;
+  const total = votables.length;
   const update = () => {
-    const done = cats.filter((c) => form.querySelector(`input[name="${c.id}"]:checked`)).length;
+    const done = votables.filter((c) => form.querySelector(`input[name="${c.id}"]:checked`)).length;
     progress.textContent = `${done} de ${total} categorías elegidas`;
     submit.disabled = done < total;
   };
@@ -74,7 +76,7 @@ function renderBallot(data) {
 
   submit.onclick = async () => {
     const votes = {};
-    cats.forEach((c) => {
+    votables.forEach((c) => {
       const sel = form.querySelector(`input[name="${c.id}"]:checked`);
       if (sel) votes[c.id] = sel.value;
     });

@@ -18,6 +18,7 @@ export function migrateContent(c) {
     for (const cat of (out.editions[y].categorias || [])) {
       if (!Array.isArray(cat.nominados)) cat.nominados = [];
       if (typeof cat.imagen !== "string") cat.imagen = "";
+      if (typeof cat.dato !== "boolean") cat.dato = false; // premio que se decide por datos (sin votación)
     }
   }
   return out;

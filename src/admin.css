@@ -61,6 +61,19 @@ button { cursor: pointer; }
 .adm-card__actions { display: flex; flex-direction: column; gap: 6px; }
 
 .adm-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+
+/* fila de categoría (con handle para ordenar) */
+.adm-catrow { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px;
+  border: 1px solid transparent; border-radius: 10px; padding: 6px; transition: border-color .15s, opacity .15s; }
+.adm-catrow.dragging { opacity: .4; border-color: var(--gold-lite); }
+.adm-catrow.is-dato { background: rgba(47,208,196,.05); }
+.adm-drag { cursor: grab; color: var(--muted); font-size: 20px; line-height: 40px; user-select: none; padding: 0 2px; align-self: center; }
+.adm-drag:active { cursor: grabbing; }
+.adm-catrow .adm-emoji { align-self: center; }
+.adm-catrow__main { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.adm-catdesc { resize: vertical; min-height: 40px; }
+.adm-catrow__flags { display: flex; align-items: center; gap: 10px; align-self: center; white-space: nowrap; }
+.adm-badge--mayor { background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: #14100a; font-family: var(--serif); }
 .adm-row input { flex: 1; }
 .adm-emoji, .adm-mes { max-width: 70px; text-align: center; flex: 0 0 auto; }
 

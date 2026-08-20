@@ -238,7 +238,7 @@ app.get("/api/ballot/:token", (req, res) => {
       // terna: si tiene nominados, se vota entre ellos; si no, entre todos los integrantes
       const ids = (c.nominados && c.nominados.length) ? c.nominados : members.map((m) => m.id);
       const nominados = ids.map((id) => byId[id]).filter(Boolean).map((m) => ({ id: m.id, nombre: m.nombre, apodo: m.apodo, foto: m.foto }));
-      return { id: c.id, nombre: c.nombre, emoji: c.emoji, desc: c.desc || "", imagen: c.imagen || "", nominados };
+      return { id: c.id, nombre: c.nombre, emoji: c.emoji, desc: c.desc || "", imagen: c.imagen || "", dato: !!c.dato, mayor: !!c.mayor, nominados };
     }),
   });
 });
@@ -306,7 +306,8 @@ function computeResults() {
   const ed = currentEdition(content) || { categorias: [] };
   const memberName = (id) => (content.members || []).find((m) => m.id === id)?.nombre || id;
   const ballots = Object.values(votes.ballots || {});
-  return (ed.categorias || []).map((cat) => {
+  // los premios "dato" no se votan → no entran al conteo/ceremonia
+  return (ed.categorias || []).filter((cat) => !cat.dato).map((cat) => {
     const counts = {};
     for (const b of ballots) {
       const pick = b[cat.id];
@@ -330,9 +331,8 @@ app.get("/api/admin/results", requireAdmin, (req, res) => res.json(computeResult
 app.get("/api/ceremony", (req, res) => {
   const votes = readJSON(VOTES_FILE, {});
   if (votes.locked) return res.status(403).json({ error: "locked" });
-  // orden: categorías normales primero, el "mayor" (Aullame del Año) al final
+  // respeta el orden de las categorías (el organizador lo define en el panel)
   const r = computeResults().map(({ detalle, ...rest }) => rest);
-  r.sort((a, b) => (a.mayor === b.mayor ? 0 : a.mayor ? 1 : -1));
   res.json(r);
 });
 
@@ -354,8 +354,7 @@ app.get("/api/premios", (req, res) => {
     nota: "",
     ...(r.mayor ? { mayor: true } : {}),
   }));
-  premios.sort((a, b) => (!!a.mayor === !!b.mayor ? 0 : a.mayor ? 1 : -1));
-  res.json(premios);
+  res.json(premios); // en el orden que definiste en el panel
 });
 
 // --- Servir el sitio compilado (solo en modo producción: node server --serve) ---

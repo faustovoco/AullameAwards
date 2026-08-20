@@ -230,13 +230,32 @@ function tabYear(main, yearStr) {
     (ed[el.dataset.ed] = el.dataset.ed === "ceremonyDate" ? fromLocalInput(el.value) : el.value)));
   document.getElementById("ed-fin").onchange = (e) => { ed.finalizada = e.target.checked; renderApp(); };
 
-  // categorías
+  // categorías (con reordenamiento por arrastre)
   if (!ed.categorias) ed.categorias = [];
-  main.querySelectorAll("[data-cid]").forEach((row) => {
+  main.querySelectorAll("#cats [data-cid]").forEach((row, i) => {
     const cat = ed.categorias.find((x) => x.id === row.dataset.cid);
-    row.querySelectorAll("[data-f]").forEach((el) => (el[el.type === "checkbox" ? "onchange" : "oninput"] =
-      () => (cat[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value)));
+    row.querySelectorAll("[data-f]").forEach((el) => {
+      if (el.type === "checkbox") el.onchange = () => { cat[el.dataset.f] = el.checked; renderApp(); };
+      else el.oninput = () => (cat[el.dataset.f] = el.value);
+    });
     row.querySelector("[data-delcat]").onclick = () => { ed.categorias = ed.categorias.filter((x) => x !== cat); renderApp(); };
+
+    // drag & drop: solo arranca desde el handle
+    const handle = row.querySelector(".adm-drag");
+    handle.addEventListener("mousedown", () => (row.draggable = true));
+    row.querySelectorAll("input,textarea").forEach((el) => el.addEventListener("mousedown", () => (row.draggable = false)));
+    row.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", String(i)); row.classList.add("dragging"); });
+    row.addEventListener("dragend", () => { row.draggable = false; row.classList.remove("dragging"); });
+    row.addEventListener("dragover", (e) => e.preventDefault());
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const from = Number(e.dataTransfer.getData("text/plain"));
+      if (Number.isNaN(from) || from === i) return;
+      const arr = ed.categorias;
+      const [moved] = arr.splice(from, 1);
+      arr.splice(i, 0, moved);
+      renderApp();
+    });
   });
 
   // ganadores
@@ -269,7 +288,7 @@ function tabYear(main, yearStr) {
 
   // add
   main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
-    if (b.dataset.add === "cat") ed.categorias.push({ id: uid("c"), nombre: "Nueva categoría", emoji: "🏆", desc: "", mayor: false });
+    if (b.dataset.add === "cat") ed.categorias.push({ id: uid("c"), nombre: "Nueva categoría", emoji: "🏆", desc: "", mayor: false, dato: false, nominados: [], imagen: "" });
     if (b.dataset.add === "gan") ed.ganadores.push({ categoria: "", ganador: "", foto: "" });
     if (b.dataset.add === "month") ed.timeline.push({ mes: "MES", titulo: "", desc: "", fotos: [] });
     renderApp();
@@ -300,12 +319,18 @@ const memberRow = (m) => `
   </div>`;
 
 const catRow = (c) => `
-  <div class="adm-row" data-cid="${c.id}">
+  <div class="adm-catrow ${c.dato ? "is-dato" : ""}" data-cid="${c.id}">
+    <span class="adm-drag" title="Arrastrar para ordenar">⠿</span>
     <input class="adm-emoji" data-f="emoji" value="${H(c.emoji)}" />
-    <input data-f="nombre" placeholder="Categoría" value="${H(c.nombre)}" />
-    <input data-f="desc" placeholder="Descripción" value="${H(c.desc)}" />
-    <label class="adm-check"><input type="checkbox" data-f="mayor" ${c.mayor ? "checked" : ""}/> mayor</label>
-    <button class="adm-del" data-delcat>✕</button>
+    <div class="adm-catrow__main">
+      <input data-f="nombre" placeholder="Categoría" value="${H(c.nombre)}" />
+      <textarea class="adm-catdesc" data-f="desc" placeholder="Descripción" rows="1">${H(c.desc)}</textarea>
+    </div>
+    <div class="adm-catrow__flags">
+      ${c.mayor ? `<span class="adm-badge adm-badge--mayor" title="El premio mayor siempre es el Aullame del Año">⭐ MAYOR</span>`
+                : `<label class="adm-check"><input type="checkbox" data-f="dato" ${c.dato ? "checked" : ""}/> Dato (sin votación)</label>`}
+      <button class="adm-del" data-delcat>✕</button>
+    </div>
   </div>`;
 
 const ganRow = (g, i) => `
