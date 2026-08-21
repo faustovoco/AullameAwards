@@ -91,6 +91,13 @@ document.getElementById("vote-btn").onclick = () => {
   document.getElementById("hero-date").textContent = fechaTexto(ed.ceremonyDate).toUpperCase();
   startCountdown(ed.ceremonyDate);
 
+  // footer: edición + fecha en curso (lo que se configura desde admin), acorde al hero
+  const [fDia, fMes, fAnio] = fechaTexto(ed.ceremonyDate).split(" ");
+  const fMesTitle = fMes ? fMes.charAt(0) + fMes.slice(1).toLowerCase() : "";
+  const footerLine = document.getElementById("footer-line");
+  if (footerLine) footerLine.textContent =
+    ["AULLAME AWARDS", ed.edicion, `${fDia} ${fMesTitle} ${fAnio}`].filter(Boolean).join(" · ");
+
   // integrantes
   document.getElementById("members-grid").innerHTML = content.members.map((m) => `
     <article class="member">
