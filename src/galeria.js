@@ -112,7 +112,7 @@ function render() {
   const body = document.getElementById("gal-body");
   const fotos = albumFotos();
   if (!fotos.length) body.innerHTML = `<p class="gal-empty">No hay fotos en este álbum todavía. Tocá <b>Subir fotos</b>.</p>`;
-  else if (mode === "view") renderTimelineMosaic(body, grouped(fotos));
+  else if (mode === "view") renderTimelineMosaic(body, grouped(fotos), { scrubber: true });
   else renderSelectGrid(body, fotos);
 }
 

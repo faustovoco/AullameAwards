@@ -178,7 +178,9 @@ export function renderTimelineMosaic(container, timeline, opts = {}) {
     months.appendChild(row);
   });
 
-  if (opts.scrubber !== false) buildScrubber(container, marks);
+  // El deslizador solo se usa donde el mosaico es el contenido principal (galería).
+  // En páginas donde es una sección más (inicio, 2025) las marcas se calculan mal.
+  if (opts.scrubber === true) buildScrubber(container, marks);
 
   document.addEventListener("keydown", (e) => {
     if (!pinned) return;
